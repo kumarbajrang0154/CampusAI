@@ -12,6 +12,204 @@ datasource db {
 
 // ========== Authentication ==========
 
+enum UserRole {
+  STUDENT
+  FACULTY
+  HOD
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+/// Unified authentication model for all roles (Student, Faculty, HOD, Admin).
+/// Role-specific profile data (Student enrollment, Faculty department, etc.)
+/// will be linked in Stage 2 via one-to-one relations.
+model User {
+  id                  String     @id @default(cuid())
+  name                String
+  email               String     @unique
+  passwordHash        String
+  role                UserRole
+  status              UserStatus @default(ACTIVE)
+  isActive            Boolean    @default(true)
+  /// Required by NextAuth for email verification flows
+  emailVerified       DateTime?
+  /// Profile photo URL (Cloudinary)
+  image               String?
+  lastLoginAt         DateTime?
+  failedLoginAttempts Int        @default(0)
+  /// Temporary lockout after repeated failed login attempts
+  lockedUntil         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  /// Soft delete — do not hard-delete users, set this instead
+  deletedAt           DateTime?
+
+  // Relations
+  sessions     Session[]
+  accounts     Account[]
+  permissions  UserPermission[]
+  auditLogs    ActivityLog[]
+  loginHistory LoginHistory[]
+
+  // Stage 2+: Student, Faculty, HOD profile relations will be added here
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+/// NextAuth Account model — supports future OAuth providers in addition to Credentials.
+/// Even though Credentials is the primary auth method, this table is required
+/// by PrismaAdapter for NextAuth to function correctly.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/// Database-backed sessions for token revocation support.
+/// Project standard: strategy: "database" (not JWT-only).
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// Used for email verification and password reset flows.
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+/// Master list of all granular permissions in the system.
+/// Keys follow the format: "{resource}.{action}" (e.g., "attendance.write", "user.manage").
+/// The RBAC system uses this table rather than hard-coded role checks.
+model Permission {
+  id          String   @id @default(cuid())
+  /// Unique permission key (e.g., "attendance.read", "quiz.create")
+  key         String   @unique
+  description String
+  /// Logical group for display/management (e.g., "Academic", "Attendance", "AI")
+  group       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  @@index([group])
+  @@map("permissions")
+}
+
+/// Default permission assignments per role.
+/// These are the baseline permissions every user with that role receives.
+model RolePermission {
+  id           String   @id @default(cuid())
+  role         UserRole
+  permissionId String
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+  @@map("role_permissions")
+}
+
+/// Per-user permission overrides (exceptions to role defaults).
+/// granted: true  → explicitly grant a permission even if the role doesn't have it
+/// granted: false → explicitly DENY a permission even if the role does have it
+model UserPermission {
+  id           String  @id @default(cuid())
+  userId       String
+  permissionId String
+  /// true = grant override, false = deny override
+  granted      Boolean @default(true)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@map("user_permissions")
+}
+
+/// Immutable audit trail of all login attempts (successful and failed).
+/// userId is nullable to capture failed attempts for unknown emails.
+model LoginHistory {
+  id            String   @id @default(cuid())
+  /// Null if the email was not found in the system
+  userId        String?
+  /// Always captured, even for unknown emails
+  email         String
+  success       Boolean
+  ipAddress     String?
+  userAgent     String?
+  /// e.g., "invalid_password" | "account_locked" | "account_inactive"
+  failureReason String?
+  createdAt     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([createdAt])
+  @@map("login_history")
+}
+
+/// General audit log for admin actions: role changes, account creation/disable, password resets.
+/// Both actor (userId) and affected subject (targetUserId) are recorded.
+model ActivityLog {
+  id           String   @id @default(cuid())
+  /// The user who performed the action
+  userId       String
+  /// The user who was affected (nullable — some actions have no target user)
+  targetUserId String?
+  /// e.g., "USER_CREATED" | "ROLE_CHANGED" | "ACCOUNT_DISABLED" | "PASSWORD_RESET"
+  action       String
+  /// Flexible JSON metadata (old value, new value, etc.)
+  details      Json?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
 // ========== Academic Structure ==========
 
 // ========== Student ==========

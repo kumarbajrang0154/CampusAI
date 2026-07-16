@@ -1,16 +1,7 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+import { AppSessionProvider } from '@/components/shared/session-provider';
 
 export const metadata: Metadata = {
   title: {
@@ -28,11 +19,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        {/* TODO: Add global providers (QueryClientProvider, SessionProvider, etc.) */}
-        {children}
+        {/* AppSessionProvider makes useSession() available throughout the app */}
+        <AppSessionProvider>{children}</AppSessionProvider>
       </body>
     </html>
   );
 }
+
