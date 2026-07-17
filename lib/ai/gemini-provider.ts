@@ -1,13 +1,22 @@
 // lib/ai/gemini-provider.ts — Google Gemini AI Provider Placeholder
-// TODO: Implement full Gemini provider with model configuration and helpers
-
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error('GEMINI_API_KEY environment variable is not set');
-}
+let warned = false;
+const checkKey = () => {
+  if (!process.env.GEMINI_API_KEY && !warned) {
+    console.warn('⚠️ WARNING: GEMINI_API_KEY is not set. Google Gemini AI features will fail on execution.');
+    warned = true;
+  }
+};
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const rawGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'DUMMY_KEY');
+
+export const genAI = new Proxy(rawGenAI, {
+  get(target, prop, receiver) {
+    checkKey();
+    return Reflect.get(target, prop, receiver);
+  }
+});
 
 /**
  * Get a Gemini generative model instance.
@@ -17,4 +26,3 @@ export function getGeminiModel(modelName = 'gemini-pro') {
   return genAI.getGenerativeModel({ model: modelName });
 }
 
-export { genAI };

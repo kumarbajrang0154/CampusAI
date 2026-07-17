@@ -75,12 +75,11 @@ export const authOptions: NextAuthOptions = {
   // PrismaAdapter handles Session, Account, and VerificationToken storage
   adapter: PrismaAdapter(prisma),
 
-  // Database-backed sessions for revocation support.
-  // NOTE: With strategy: "database", getToken() in middleware returns null.
-  // Route protection in proxy.ts uses cookie presence check + role stored in
-  // session DB. Server-side auth uses getServerSession(authOptions) in layouts/API routes.
+  // NextAuth v4 requires JWT strategy when using Credentials provider.
+  // Although we use the Prisma adapter for user/account records, sessions themselves
+  // must be token-based.
   session: {
-    strategy: 'database',
+    strategy: 'jwt',
     maxAge: SESSION_MAX_AGE,
     // Update session expiry on activity (rolling sessions)
     updateAge: 24 * 60 * 60, // 24 hours
@@ -233,23 +232,29 @@ export const authOptions: NextAuthOptions = {
     },
 
     /**
-     * session callback — enriches the session with role and permissions.
-     * Called every time a session is accessed (getServerSession / useSession).
-     *
-     * Performance: permissions are fetched from DB here.
-     * Future optimization: cache per session ID or use Redis.
+     * jwt callback — persists user ID, role, and permissions onto the token.
+     * Called on token creation (login) and update.
      */
-    async session({ session, user }) {
-      if (session.user && user) {
-        // Fetch full user data to enrich the session
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { role: true },
-        });
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+        // Fetch permissions once on login and cache in JWT.
+        // Tradeoff: Permission changes won't reflect until the user logs out and logs in again.
+        token.permissions = await getUserPermissions(user.id);
+      }
+      return token;
+    },
 
-        session.user.id = user.id;
-        session.user.role = (dbUser?.role ?? 'STUDENT') as UserRole;
-        session.user.permissions = await getUserPermissions(user.id);
+    /**
+     * session callback — enriches the session with role and permissions from the JWT token.
+     * Called every time a session is accessed (getServerSession / useSession).
+     */
+    async session({ session, token }) {
+      if (session.user && token) {
+        session.user.id = token.id as string;
+        session.user.role = (token.role ?? 'STUDENT') as UserRole;
+        session.user.permissions = (token.permissions ?? []) as string[];
       }
 
       return session;

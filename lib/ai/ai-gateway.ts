@@ -28,6 +28,7 @@ export type AIResponse = {
  * AI Gateway — routes AI requests to the appropriate feature handler.
  * TODO: Implement routing logic and feature-specific handlers.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function aiGateway(_request: AIRequest): Promise<AIResponse> {
   throw new Error('AI Gateway not yet implemented');
 }

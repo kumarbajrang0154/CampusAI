@@ -4,7 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
 declare global {
-  var prisma: PrismaClient | undefined; // eslint-disable-line no-var
+  var prisma: PrismaClient | undefined;
 }
 
 const connectionString = process.env.DATABASE_URL;
