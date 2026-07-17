@@ -18,7 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { Loader2 } from 'lucide-react';
 
 import { setRoleCookie } from '@/lib/utils';
@@ -99,8 +99,7 @@ export function LoginForm({ callbackUrlOverride }: LoginFormProps) {
       }
 
       // Fetch session to get role for redirect + role cookie
-      const sessionRes = await fetch('/api/auth/session');
-      const session = await sessionRes.json();
+      const session = await getSession();
       const role = session?.user?.role as string | undefined;
 
       if (role) setRoleCookie(role);
