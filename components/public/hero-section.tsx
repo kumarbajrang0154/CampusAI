@@ -82,7 +82,7 @@ export function HeroSection() {
                   C
                 </div>
                 <CardTitle className="text-xl">Welcome Back</CardTitle>
-                <CardDescription>Sign in to your CampusAI account</CardDescription>
+                <CardDescription>Sign in with your institutional Google account</CardDescription>
               </CardHeader>
 
               <CardContent className="pt-4">

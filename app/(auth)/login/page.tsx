@@ -20,7 +20,7 @@ function LoginPageContent() {
             C
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in to your CampusAI account</CardDescription>
+          <CardDescription>Sign in with your institutional Google account</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />

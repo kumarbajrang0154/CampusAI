@@ -16,7 +16,7 @@ import 'dotenv/config';
 import { PrismaClient, UserRole } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
-import bcrypt from 'bcryptjs';
+
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -167,9 +167,9 @@ async function main() {
   // 3. Seed default ADMIN user
   console.log('👤 Seeding default admin user...');
 
-  // ⚠️  CHANGE THIS PASSWORD IMMEDIATELY AFTER FIRST DEPLOY
-  const DEFAULT_ADMIN_PASSWORD = 'Admin@CampusAI123!';
-  const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 12);
+  // Note: passwordHash is deprecated as Google OAuth is now the sole sign-in method.
+  // We use a dummy placeholder hash to satisfy the database non-null schema constraint.
+  const dummyPasswordHash = '$2b$12$DummyHashForSchemaSatisfactionPlaceholder';
 
   await prisma.user.upsert({
     where: { email: 'admin@campusai.local' },
@@ -177,7 +177,7 @@ async function main() {
     create: {
       name: 'System Administrator',
       email: 'admin@campusai.local',
-      passwordHash,
+      passwordHash: dummyPasswordHash,
       role: UserRole.ADMIN,
       status: 'ACTIVE',
       isActive: true,
@@ -185,8 +185,8 @@ async function main() {
     },
   });
 
-  console.log('   ✓ Admin user created: admin@campusai.local');
-  console.log('   ⚠️  Password: Admin@CampusAI123! — CHANGE IMMEDIATELY after deploy!\n');
+  console.log('   ✓ Admin user created: admin@campusai.local (Google OAuth only)');
+  console.log('   ⚠️  Configure the admin email address to a real Google account you control before testing locally.\n');
 
   // Summary
   const counts = {

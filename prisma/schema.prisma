@@ -32,6 +32,8 @@ model User {
   id                  String     @id @default(cuid())
   name                String
   email               String     @unique
+  /// @deprecated no longer used for auth now that Google OAuth is the sole sign-in method.
+  /// Retained temporarily in case of rollback; safe to remove in a future migration once confirmed stable.
   passwordHash        String
   role                UserRole
   status              UserStatus @default(ACTIVE)

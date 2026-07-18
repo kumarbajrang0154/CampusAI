@@ -14,24 +14,20 @@
  */
 
 import type { NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
+import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import bcrypt from 'bcryptjs';
 
 import prisma from '@/lib/prisma';
 import { getUserPermissions } from '@/lib/permissions';
-import { loginSchema } from '@/features/auth/schemas/login.schema';
 import type { UserRole } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Number of failed attempts before temporary lockout */
-const MAX_FAILED_ATTEMPTS = 5;
-
-/** Lockout duration in minutes */
-const LOCKOUT_DURATION_MINUTES = 15;
+// Deprecated: lockout constants no longer used since Google OAuth is the sole sign-in method.
+// const MAX_FAILED_ATTEMPTS = 5;
+// const LOCKOUT_DURATION_MINUTES = 15;
 
 /** Session max age in seconds (30 days) — adjust in .env for shorter sessions */
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
@@ -86,106 +82,74 @@ export const authOptions: NextAuthOptions = {
   },
 
   providers: [
-    CredentialsProvider({
-      name: 'Credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      /*
+       * Safe to enable email linking here because:
+       * 1. Google emails are pre-vetted by administrators (no open sign-up allowed).
+       * 2. The signIn callback gates authentication, rejecting any email not pre-registered in the DB.
+       */
+      allowDangerousEmailAccountLinking: true,
+    }),
+  ],
 
-      async authorize(credentials) {
-        // 1. Validate input shape with Zod
-        const parsed = loginSchema.safeParse(credentials);
-        if (!parsed.success) {
-          // Invalid input shape — treat as generic failure
-          return null;
+  callbacks: {
+    /**
+     * signIn callback — acts as the main gatekeeper for Google OAuth.
+     * Restricts login to pre-provisioned, active user accounts created by Admins.
+     */
+    async signIn({ user, account }) {
+      if (account?.provider === 'google') {
+        if (!user.email) {
+          return false;
         }
 
-        const { email, password } = parsed.data;
-
-        // 2. Look up user — do NOT reveal whether the email exists
-        const user = await prisma.user.findUnique({
-          where: { email },
+        // 1. Verify user exists in the database
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
         });
 
-        if (!user) {
-          // Log failed attempt for unknown email (userId will be null)
+        if (!dbUser) {
+          // Reject and log to LoginHistory
           await logLoginAttempt({
-            email,
+            email: user.email,
             success: false,
             failureReason: 'user_not_found',
           });
-          // Generic error — never reveal email existence
-          return null;
+          return false;
         }
 
-        // 3. Check soft-delete and account status
-        if (user.deletedAt) {
+        // 2. Verify account status
+        if (dbUser.deletedAt) {
           await logLoginAttempt({
-            userId: user.id,
-            email,
+            userId: dbUser.id,
+            email: user.email,
             success: false,
             failureReason: 'account_deleted',
           });
-          throw new Error('ACCOUNT_INACTIVE');
+          return false;
         }
 
-        if (user.status !== 'ACTIVE' || !user.isActive) {
+        if (dbUser.status !== 'ACTIVE' || !dbUser.isActive) {
           await logLoginAttempt({
-            userId: user.id,
-            email,
+            userId: dbUser.id,
+            email: user.email,
             success: false,
             failureReason: 'account_inactive',
           });
-          throw new Error('ACCOUNT_INACTIVE');
+          return false;
         }
 
-        // 4. Check account lockout
-        if (user.lockedUntil && user.lockedUntil > new Date()) {
-          await logLoginAttempt({
-            userId: user.id,
-            email,
-            success: false,
-            failureReason: 'account_locked',
-          });
-          throw new Error('ACCOUNT_LOCKED');
-        }
+        // 3. Success - log login attempt and update lastLoginAt
+        await logLoginAttempt({
+          userId: dbUser.id,
+          email: user.email,
+          success: true,
+        });
 
-        // 5. Verify password
-        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-
-        if (!isValidPassword) {
-          // Increment failed attempts
-          const newFailedAttempts = user.failedLoginAttempts + 1;
-          const shouldLock = newFailedAttempts >= MAX_FAILED_ATTEMPTS;
-
-          await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              failedLoginAttempts: newFailedAttempts,
-              lockedUntil: shouldLock
-                ? new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000)
-                : null,
-            },
-          });
-
-          await logLoginAttempt({
-            userId: user.id,
-            email,
-            success: false,
-            failureReason: shouldLock ? 'account_locked' : 'invalid_password',
-          });
-
-          if (shouldLock) {
-            throw new Error('ACCOUNT_LOCKED');
-          }
-
-          return null;
-        }
-
-        // 6. Success — reset failed attempts, update lastLoginAt
         await prisma.user.update({
-          where: { id: user.id },
+          where: { id: dbUser.id },
           data: {
             failedLoginAttempts: 0,
             lockedUntil: null,
@@ -193,41 +157,10 @@ export const authOptions: NextAuthOptions = {
           },
         });
 
-        await logLoginAttempt({
-          userId: user.id,
-          email,
-          success: true,
-        });
-
-        // Return the user object (only safe fields for the session)
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image ?? null,
-          role: user.role,
-        };
-      },
-    }),
-  ],
-
-  callbacks: {
-    /**
-     * signIn callback — defense-in-depth check after authorize().
-     * Re-verifies user status in case it changed between authorize() and session creation.
-     */
-    async signIn({ user }) {
-      if (!user.id) return false;
-
-      const dbUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { status: true, isActive: true, deletedAt: true },
-      });
-
-      if (!dbUser || dbUser.status !== 'ACTIVE' || !dbUser.isActive || dbUser.deletedAt) {
-        return false;
+        // Set role + id so they are available to subsequent callbacks
+        user.id = dbUser.id;
+        user.role = dbUser.role;
       }
-
       return true;
     },
 
@@ -278,8 +211,8 @@ export const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: '/login',
-    error: '/login',
+    signIn: '/',
+    error: '/',
   },
 
   secret: process.env.AUTH_SECRET,
