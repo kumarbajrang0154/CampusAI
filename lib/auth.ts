@@ -67,6 +67,14 @@ async function logLoginAttempt({
 // NextAuth Options
 // ---------------------------------------------------------------------------
 
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  console.warn(
+    "⚠️  GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set. " +
+    "Google sign-in will not work until these are configured. " +
+    "See .env.example for required variables."
+  );
+}
+
 export const authOptions: NextAuthOptions = {
   // PrismaAdapter handles Session, Account, and VerificationToken storage
   adapter: PrismaAdapter(prisma),
@@ -83,8 +91,8 @@ export const authOptions: NextAuthOptions = {
 
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
       /*
        * Safe to enable email linking here because:
        * 1. Google emails are pre-vetted by administrators (no open sign-up allowed).
