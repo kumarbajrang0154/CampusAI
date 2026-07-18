@@ -156,13 +156,28 @@ export const authOptions: NextAuthOptions = {
           success: true,
         });
 
+        const emailLocalPart = dbUser.email.split('@')[0];
+        const hasPlaceholderName =
+          !dbUser.name ||
+          dbUser.name === 'Pending Name' ||
+          dbUser.name === emailLocalPart;
+
+        const updateData: Record<string, any> = {
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          lastLoginAt: new Date(),
+        };
+
+        if (hasPlaceholderName && user.name) {
+          updateData.name = user.name;
+        }
+        if (!dbUser.image && user.image) {
+          updateData.image = user.image;
+        }
+
         await prisma.user.update({
           where: { id: dbUser.id },
-          data: {
-            failedLoginAttempts: 0,
-            lockedUntil: null,
-            lastLoginAt: new Date(),
-          },
+          data: updateData,
         });
 
         // Set role + id so they are available to subsequent callbacks

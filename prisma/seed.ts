@@ -172,11 +172,11 @@ async function main() {
   const dummyPasswordHash = '$2b$12$DummyHashForSchemaSatisfactionPlaceholder';
 
   await prisma.user.upsert({
-    where: { email: 'admin@campusai.local' },
+    where: { email: 'kumarbajrang325@gmail.com' },
     update: {},
     create: {
       name: 'System Administrator',
-      email: 'admin@campusai.local',
+      email: 'kumarbajrang325@gmail.com',
       passwordHash: dummyPasswordHash,
       role: UserRole.ADMIN,
       status: 'ACTIVE',
@@ -185,7 +185,7 @@ async function main() {
     },
   });
 
-  console.log('   ✓ Admin user created: admin@campusai.local (Google OAuth only)');
+  console.log('   ✓ Admin user created: kumarbajrang325@gmail.com (Google OAuth only)');
   console.log('   ⚠️  Configure the admin email address to a real Google account you control before testing locally.\n');
 
   // Summary
