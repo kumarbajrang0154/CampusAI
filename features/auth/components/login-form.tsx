@@ -23,8 +23,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 function getErrorMessage(error: string | null): string | null {
   if (!error) return null;
   switch (error) {
+    case 'NoAccount':
     case 'AccessDenied':
       return 'No account found for this email. Please contact your institution administrator to get access.';
+    case 'AccountInactive':
+      return 'Your account has been deactivated. Please contact your institution administrator.';
+    case 'ServerError':
+      return 'Something went wrong on our end. Please try again in a moment.';
     case 'Verification':
       return 'Verification link has expired or has already been used.';
     case 'OAuthSignin':

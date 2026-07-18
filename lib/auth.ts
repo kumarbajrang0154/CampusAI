@@ -110,79 +110,86 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
         if (!user.email) {
-          return false;
+          return '/?error=NoAccount';
         }
 
-        // 1. Verify user exists in the database
-        const dbUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-
-        if (!dbUser) {
-          // Reject and log to LoginHistory
-          await logLoginAttempt({
-            email: user.email,
-            success: false,
-            failureReason: 'user_not_found',
+        try {
+          // 1. Verify user exists in the database
+          const dbUser = await prisma.user.findUnique({
+            where: { email: user.email },
           });
-          return false;
-        }
 
-        // 2. Verify account status
-        if (dbUser.deletedAt) {
+          if (!dbUser) {
+            // Reject and log to LoginHistory
+            await logLoginAttempt({
+              email: user.email,
+              success: false,
+              failureReason: 'user_not_found',
+            });
+            return '/?error=NoAccount';
+          }
+
+          // 2. Verify account status
+          if (dbUser.deletedAt) {
+            await logLoginAttempt({
+              userId: dbUser.id,
+              email: user.email,
+              success: false,
+              failureReason: 'account_deleted',
+            });
+            return '/?error=AccountInactive';
+          }
+
+          if (dbUser.status !== 'ACTIVE' || !dbUser.isActive) {
+            await logLoginAttempt({
+              userId: dbUser.id,
+              email: user.email,
+              success: false,
+              failureReason: 'account_inactive',
+            });
+            return '/?error=AccountInactive';
+          }
+
+          // 3. Success - log login attempt and update lastLoginAt
           await logLoginAttempt({
             userId: dbUser.id,
             email: user.email,
-            success: false,
-            failureReason: 'account_deleted',
+            success: true,
           });
-          return false;
-        }
 
-        if (dbUser.status !== 'ACTIVE' || !dbUser.isActive) {
-          await logLoginAttempt({
-            userId: dbUser.id,
-            email: user.email,
-            success: false,
-            failureReason: 'account_inactive',
+          const emailLocalPart = dbUser.email.split('@')[0];
+          const hasPlaceholderName =
+            !dbUser.name ||
+            dbUser.name === 'Pending Name' ||
+            dbUser.name === emailLocalPart;
+
+          const updateData: Record<string, any> = {
+            failedLoginAttempts: 0,
+            lockedUntil: null,
+            lastLoginAt: new Date(),
+          };
+
+          if (hasPlaceholderName && user.name) {
+            updateData.name = user.name;
+          }
+          if (!dbUser.image && user.image) {
+            updateData.image = user.image;
+          }
+
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: updateData,
           });
-          return false;
+
+          // Set role + id so they are available to subsequent callbacks
+          user.id = dbUser.id;
+          user.role = dbUser.role;
+
+          return true;
+        } catch (error) {
+          console.error('[signIn callback error]', error);
+          return '/?error=ServerError';
         }
-
-        // 3. Success - log login attempt and update lastLoginAt
-        await logLoginAttempt({
-          userId: dbUser.id,
-          email: user.email,
-          success: true,
-        });
-
-        const emailLocalPart = dbUser.email.split('@')[0];
-        const hasPlaceholderName =
-          !dbUser.name ||
-          dbUser.name === 'Pending Name' ||
-          dbUser.name === emailLocalPart;
-
-        const updateData: Record<string, any> = {
-          failedLoginAttempts: 0,
-          lockedUntil: null,
-          lastLoginAt: new Date(),
-        };
-
-        if (hasPlaceholderName && user.name) {
-          updateData.name = user.name;
-        }
-        if (!dbUser.image && user.image) {
-          updateData.image = user.image;
-        }
-
-        await prisma.user.update({
-          where: { id: dbUser.id },
-          data: updateData,
-        });
-
-        // Set role + id so they are available to subsequent callbacks
-        user.id = dbUser.id;
-        user.role = dbUser.role;
       }
       return true;
     },
