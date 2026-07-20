@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
 }
 
 // ========== Authentication ==========
@@ -29,12 +29,12 @@ enum UserStatus {
 /// Role-specific profile data (Student enrollment, Faculty department, etc.)
 /// will be linked in Stage 2 via one-to-one relations.
 model User {
-  id                  String     @id @default(cuid())
-  name                String
+  id                  String     @id @default(auto()) @map("_id") @db.ObjectId
+  name                String?
   email               String     @unique
   /// @deprecated no longer used for auth now that Google OAuth is the sole sign-in method.
   /// Retained temporarily in case of rollback; safe to remove in a future migration once confirmed stable.
-  passwordHash        String
+  passwordHash        String?
   role                UserRole
   status              UserStatus @default(ACTIVE)
   isActive            Boolean    @default(true)
@@ -70,8 +70,8 @@ model User {
 /// Even though Credentials is the primary auth method, this table is required
 /// by PrismaAdapter for NextAuth to function correctly.
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
   type              String
   provider          String
   providerAccountId String
@@ -93,9 +93,9 @@ model Account {
 /// Database-backed sessions for token revocation support.
 /// Project standard: strategy: "database" (not JWT-only).
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   sessionToken String   @unique
-  userId       String
+  userId       String   @db.ObjectId
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -105,7 +105,9 @@ model Session {
 }
 
 /// Used for email verification and password reset flows.
+/// Required by MongoDB Prisma connection to have an @id field.
 model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   identifier String
   token      String   @unique
   expires    DateTime
@@ -118,7 +120,7 @@ model VerificationToken {
 /// Keys follow the format: "{resource}.{action}" (e.g., "attendance.write", "user.manage").
 /// The RBAC system uses this table rather than hard-coded role checks.
 model Permission {
-  id          String   @id @default(cuid())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   /// Unique permission key (e.g., "attendance.read", "quiz.create")
   key         String   @unique
   description String
@@ -137,9 +139,9 @@ model Permission {
 /// Default permission assignments per role.
 /// These are the baseline permissions every user with that role receives.
 model RolePermission {
-  id           String   @id @default(cuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   role         UserRole
-  permissionId String
+  permissionId String   @db.ObjectId
 
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
@@ -152,9 +154,9 @@ model RolePermission {
 /// granted: true  → explicitly grant a permission even if the role doesn't have it
 /// granted: false → explicitly DENY a permission even if the role does have it
 model UserPermission {
-  id           String  @id @default(cuid())
-  userId       String
-  permissionId String
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String  @db.ObjectId
+  permissionId String  @db.ObjectId
   /// true = grant override, false = deny override
   granted      Boolean @default(true)
 
@@ -169,9 +171,9 @@ model UserPermission {
 /// Immutable audit trail of all login attempts (successful and failed).
 /// userId is nullable to capture failed attempts for unknown emails.
 model LoginHistory {
-  id            String   @id @default(cuid())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
   /// Null if the email was not found in the system
-  userId        String?
+  userId        String?  @db.ObjectId
   /// Always captured, even for unknown emails
   email         String
   success       Boolean
@@ -192,9 +194,9 @@ model LoginHistory {
 /// General audit log for admin actions: role changes, account creation/disable, password resets.
 /// Both actor (userId) and affected subject (targetUserId) are recorded.
 model ActivityLog {
-  id           String   @id @default(cuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   /// The user who performed the action
-  userId       String
+  userId       String   @db.ObjectId
   /// The user who was affected (nullable — some actions have no target user)
   targetUserId String?
   /// e.g., "USER_CREATED" | "ROLE_CHANGED" | "ACCOUNT_DISABLED" | "PASSWORD_RESET"
@@ -211,21 +213,3 @@ model ActivityLog {
   @@index([createdAt])
   @@map("activity_logs")
 }
-
-// ========== Academic Structure ==========
-
-// ========== Student ==========
-
-// ========== Faculty ==========
-
-// ========== Attendance ==========
-
-// ========== LMS ==========
-
-// ========== Placement ==========
-
-// ========== AI ==========
-
-// ========== Notifications ==========
-
-// ========== Audit ==========

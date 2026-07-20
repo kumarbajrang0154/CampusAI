@@ -2,36 +2,17 @@
  * lib/auth-guard.ts — Server-Side Authentication & Permission Guards
  *
  * Use these in Server Components, Server Actions, and API Route Handlers
- * to enforce authentication and permissions AFTER the proxy has done
+ * to enforce authentication and permissions AFTER the middleware has done
  * lightweight cookie-based route gating.
  *
- * These guards use getServerSession() which validates against the DB —
+ * These guards use auth() which validates against the DB/session context —
  * providing real security (not just cookie presence checks).
- *
- * Usage examples:
- *
- *   // In an API route handler:
- *   export async function POST(req: Request) {
- *     try {
- *       const session = await requireAuth();
- *       // session.user.id, session.user.role, session.user.permissions available
- *     } catch (error) {
- *       return handleApiError(error);
- *     }
- *   }
- *
- *   // Require a specific role:
- *   const session = await requireRole(['ADMIN', 'HOD']);
- *
- *   // Require a specific permission:
- *   const session = await requirePermission('attendance.write');
  */
 
-import { getServerSession } from 'next-auth';
+import { auth } from '@/lib/auth';
 import type { Session } from 'next-auth';
 import type { UserRole } from '@prisma/client';
 
-import { authOptions } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { AuthError, ForbiddenError } from '@/lib/errors';
 
@@ -40,12 +21,12 @@ import { AuthError, ForbiddenError } from '@/lib/errors';
 // ---------------------------------------------------------------------------
 
 /**
- * Verifies that the current request has a valid server-side session.
+ * Verifies that the current request has a valid session.
  * Throws AuthError (401) if not authenticated.
  * Returns the full session object on success.
  */
 export async function requireAuth(): Promise<Session> {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   if (!session || !session.user?.id) {
     throw new AuthError();

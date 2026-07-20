@@ -60,7 +60,6 @@ const QUICK_ACTIONS: Record<
     { label: 'View Assignments', href: '/student/assignments', icon: PlusCircle },
   ],
   FACULTY: [
-    { label: 'Mark Attendance', href: '/faculty/attendance', icon: PlusCircle },
     { label: 'Create Quiz', href: '/faculty/quizzes', icon: PlusCircle },
   ],
   HOD: [

@@ -18,9 +18,6 @@ export class UserService {
       throw new Error('A user with this email already exists.');
     }
 
-    // 2. Create user with dummy password hash to satisfy schema
-    const dummyPasswordHash = '$2b$12$DummyHashForSchemaSatisfactionPlaceholder';
-    
     // We run the user creation and activity log in a transaction to guarantee atomic operation
     const newUser = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -30,7 +27,6 @@ export class UserService {
           role: input.role,
           status: UserStatus.ACTIVE,
           isActive: true,
-          passwordHash: dummyPasswordHash,
         },
       });
 

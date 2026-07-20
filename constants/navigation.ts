@@ -43,7 +43,6 @@ export const FACULTY_NAV: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/faculty/dashboard' },
   { label: 'Courses', icon: BookOpenCheck, href: '/faculty/courses' },
   { label: 'Timetable', icon: Calendar, href: '/faculty/timetable' },
-  { label: 'Attendance', icon: CalendarCheck, href: '/faculty/attendance' },
   { label: 'Resources', icon: BookOpen, href: '/faculty/resources' },
   { label: 'Assignments', icon: FileText, href: '/faculty/assignments' },
   { label: 'Quizzes', icon: ListChecks, href: '/faculty/quizzes' },

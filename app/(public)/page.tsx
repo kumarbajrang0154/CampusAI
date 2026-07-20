@@ -8,9 +8,7 @@
 
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { getRoleDashboardPath } from '@/lib/get-role-dashboard-path';
 import { HeroSection } from '@/components/public/hero-section';
 import { ExplanationSection } from '@/components/public/explanation-section';
@@ -27,7 +25,7 @@ export const metadata: Metadata = {
 
 export default async function LandingPage() {
   // Server-side auth check: redirect logged-in users to their dashboard
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (session?.user?.role) {
     redirect(getRoleDashboardPath(session.user.role));
   }

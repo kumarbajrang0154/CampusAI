@@ -1,40 +1,13 @@
-/**
- * lib/auth.ts — NextAuth v4 Full Configuration
- *
- * Authentication strategy: database-backed sessions (not JWT).
- * This allows server-side session revocation (e.g., on role change or account suspension).
- *
- * Providers: Credentials (primary). Account model supports future OAuth providers.
- *
- * Security features:
- *   - Failed login attempt tracking with automatic account lockout
- *   - Generic error messages (never reveal whether email exists)
- *   - All auth events logged to LoginHistory / ActivityLog
- *   - Soft-deleted users and INACTIVE/SUSPENDED users are rejected
- */
-
-import type { NextAuthOptions } from 'next-auth';
+import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import { PrismaAdapter } from '@auth/prisma-adapter';
+import { cookies } from 'next/headers';
 
 import prisma from '@/lib/prisma';
 import { getUserPermissions } from '@/lib/permissions';
 import type { UserRole } from '@prisma/client';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-// Deprecated: lockout constants no longer used since Google OAuth is the sole sign-in method.
-// const MAX_FAILED_ATTEMPTS = 5;
-// const LOCKOUT_DURATION_MINUTES = 15;
-
-/** Session max age in seconds (30 days) — adjust in .env for shorter sessions */
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
-
-// ---------------------------------------------------------------------------
-// Helper: Log login attempt to LoginHistory
-// ---------------------------------------------------------------------------
 
 async function logLoginAttempt({
   userId,
@@ -63,50 +36,21 @@ async function logLoginAttempt({
   });
 }
 
-// ---------------------------------------------------------------------------
-// NextAuth Options
-// ---------------------------------------------------------------------------
-
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  console.warn(
-    "⚠️  GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set. " +
-    "Google sign-in will not work until these are configured. " +
-    "See .env.example for required variables."
-  );
-}
-
-export const authOptions: NextAuthOptions = {
-  // PrismaAdapter handles Session, Account, and VerificationToken storage
+export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-
-  // NextAuth v4 requires JWT strategy when using Credentials provider.
-  // Although we use the Prisma adapter for user/account records, sessions themselves
-  // must be token-based.
   session: {
     strategy: 'jwt',
     maxAge: SESSION_MAX_AGE,
-    // Update session expiry on activity (rolling sessions)
     updateAge: 24 * 60 * 60, // 24 hours
   },
-
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      /*
-       * Safe to enable email linking here because:
-       * 1. Google emails are pre-vetted by administrators (no open sign-up allowed).
-       * 2. The signIn callback gates authentication, rejecting any email not pre-registered in the DB.
-       */
       allowDangerousEmailAccountLinking: true,
     }),
   ],
-
   callbacks: {
-    /**
-     * signIn callback — acts as the main gatekeeper for Google OAuth.
-     * Restricts login to pre-provisioned, active user accounts created by Admins.
-     */
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
         if (!user.email) {
@@ -114,13 +58,11 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // 1. Verify user exists in the database
           const dbUser = await prisma.user.findUnique({
             where: { email: user.email },
           });
 
           if (!dbUser) {
-            // Reject and log to LoginHistory
             await logLoginAttempt({
               email: user.email,
               success: false,
@@ -129,7 +71,6 @@ export const authOptions: NextAuthOptions = {
             return '/?error=NoAccount';
           }
 
-          // 2. Verify account status
           if (dbUser.deletedAt) {
             await logLoginAttempt({
               userId: dbUser.id,
@@ -150,7 +91,6 @@ export const authOptions: NextAuthOptions = {
             return '/?error=AccountInactive';
           }
 
-          // 3. Success - log login attempt and update lastLoginAt
           await logLoginAttempt({
             userId: dbUser.id,
             email: user.email,
@@ -163,7 +103,7 @@ export const authOptions: NextAuthOptions = {
             dbUser.name === 'Pending Name' ||
             dbUser.name === emailLocalPart;
 
-          const updateData: Record<string, any> = {
+          const updateData: Record<string, unknown> = {
             failedLoginAttempts: 0,
             lockedUntil: null,
             lastLoginAt: new Date(),
@@ -181,7 +121,6 @@ export const authOptions: NextAuthOptions = {
             data: updateData,
           });
 
-          // Set role + id so they are available to subsequent callbacks
           user.id = dbUser.id;
           user.role = dbUser.role;
 
@@ -194,56 +133,51 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    /**
-     * jwt callback — persists user ID, role, and permissions onto the token.
-     * Called on token creation (login) and update.
-     */
     async jwt({ token, user }) {
-      if (user) {
+      if (user && user.id) {
         token.id = user.id;
         token.role = user.role;
-        // Fetch permissions once on login and cache in JWT.
-        // Tradeoff: Permission changes won't reflect until the user logs out and logs in again.
         token.permissions = await getUserPermissions(user.id);
+
+        // Set the lightweight role cookie for middleware gating
+        const cookieStore = await cookies();
+        cookieStore.set('campusai-role', user.role as string, {
+          path: '/',
+          maxAge: 30 * 24 * 60 * 60, // 30 days
+          sameSite: 'lax',
+        });
       }
       return token;
     },
 
-    /**
-     * session callback — enriches the session with role and permissions from the JWT token.
-     * Called every time a session is accessed (getServerSession / useSession).
-     */
     async session({ session, token }) {
       if (session.user && token) {
         session.user.id = token.id as string;
-        session.user.role = (token.role ?? 'STUDENT') as UserRole;
+        session.user.role = token.role as UserRole;
         session.user.permissions = (token.permissions ?? []) as string[];
       }
-
       return session;
     },
   },
-
   events: {
-    /**
-     * signOut event — log the sign-out action to ActivityLog.
-     */
-    async signOut({ session }) {
-      if (session && 'userId' in session && session.userId) {
+    async signOut(message) {
+      const userId =
+        ('session' in message && message.session && 'userId' in message.session && message.session.userId) ||
+        ('token' in message && message.token && message.token.id);
+
+      if (userId) {
         await prisma.activityLog.create({
           data: {
-            userId: session.userId as string,
+            userId: userId as string,
             action: 'USER_SIGNED_OUT',
           },
         });
       }
     },
   },
-
   pages: {
     signIn: '/',
     error: '/',
   },
-
   secret: process.env.AUTH_SECRET,
-};
+});

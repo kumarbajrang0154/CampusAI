@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Calendar, CheckSquare, ClipboardCheck, GraduationCap } from 'lucide-react';
+import { Calendar, CheckSquare, GraduationCap } from 'lucide-react';
 
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { BarChartCard } from '@/components/charts/bar-chart-card';
@@ -21,12 +21,12 @@ export default function FacultyDashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Faculty Dashboard</h1>
         <p className="text-muted-foreground text-sm">
-          Manage your courses, grading rosters, and student attendance lists.
+          Manage your courses, grading rosters, and student academic performance.
         </p>
       </div>
 
       {/* KPIs Section */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard
           title="Today's Lectures"
           value="4"
@@ -37,11 +37,6 @@ export default function FacultyDashboard() {
           value="24"
           icon={CheckSquare}
           trend={{ direction: 'up', percentage: 8 }}
-        />
-        <KpiCard
-          title="Attendance Marked"
-          value="3/4"
-          icon={ClipboardCheck}
         />
         <KpiCard
           title="Average Class Performance"

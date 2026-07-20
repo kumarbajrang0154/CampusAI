@@ -13,7 +13,6 @@ import {
   ShieldAlert,
   GraduationCap,
   Briefcase,
-  User,
   Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,7 +55,7 @@ import {
 
 type UserData = {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   role: UserRole;
   status: UserStatus;
@@ -78,7 +77,6 @@ export default function UserManagementPage() {
   // Confirmation dialogs state
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [dialogType, setDialogType] = useState<'toggle' | 'delete' | null>(null);
-  const [actionPending, setActionPending] = useState(false);
 
   // Fetch users
   const loadUsers = async () => {
@@ -104,7 +102,6 @@ export default function UserManagementPage() {
   // Handle status toggle
   const handleToggleStatus = async () => {
     if (!selectedUser) return;
-    setActionPending(true);
     try {
       const response = await toggleUserStatusAction(selectedUser.id);
       if (response.success) {
@@ -116,7 +113,6 @@ export default function UserManagementPage() {
     } catch {
       toast.error('Failed to change user status.');
     } finally {
-      setActionPending(false);
       setDialogType(null);
       setSelectedUser(null);
     }
@@ -125,7 +121,6 @@ export default function UserManagementPage() {
   // Handle delete user
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-    setActionPending(true);
     try {
       const response = await deleteUserAction(selectedUser.id);
       if (response.success) {
@@ -137,7 +132,6 @@ export default function UserManagementPage() {
     } catch {
       toast.error('Failed to delete user.');
     } finally {
-      setActionPending(false);
       setDialogType(null);
       setSelectedUser(null);
     }
@@ -160,9 +154,10 @@ export default function UserManagementPage() {
 
   // Filtered users array
   const filteredUsers = users.filter((u) => {
+    const nameStr = u.name || '';
     const matchesSearch =
       !search ||
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      nameStr.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
 
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
@@ -180,12 +175,12 @@ export default function UserManagementPage() {
         const user = row.original;
         const isSelf = user.id === currentUserId;
         const emailLocalPart = user.email.split('@')[0];
-        const isPending = user.name === emailLocalPart;
+        const isPending = !user.name || user.name === emailLocalPart;
 
         return (
           <div className="flex flex-col">
             <span className="font-medium text-foreground flex items-center gap-1.5">
-              {user.name}
+              {user.name || emailLocalPart}
               {isSelf && (
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                   You

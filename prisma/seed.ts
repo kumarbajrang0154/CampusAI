@@ -14,18 +14,8 @@
 
 import 'dotenv/config';
 import { PrismaClient, UserRole } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is missing');
-}
-
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 // ---------------------------------------------------------------------------
 // Permission definitions
@@ -167,17 +157,12 @@ async function main() {
   // 3. Seed default ADMIN user
   console.log('👤 Seeding default admin user...');
 
-  // Note: passwordHash is deprecated as Google OAuth is now the sole sign-in method.
-  // We use a dummy placeholder hash to satisfy the database non-null schema constraint.
-  const dummyPasswordHash = '$2b$12$DummyHashForSchemaSatisfactionPlaceholder';
-
   await prisma.user.upsert({
     where: { email: 'kumarbajrang325@gmail.com' },
     update: {},
     create: {
       name: 'System Administrator',
       email: 'kumarbajrang325@gmail.com',
-      passwordHash: dummyPasswordHash,
       role: UserRole.ADMIN,
       status: 'ACTIVE',
       isActive: true,

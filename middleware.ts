@@ -1,27 +1,20 @@
 /**
- * proxy.ts — Next.js 16 Route Protection Proxy
- *
- * NOTE: Next.js 16 renamed "middleware.ts" to "proxy.ts".
- * See: https://nextjs.org/docs/messages/middleware-to-proxy
+ * middleware.ts — Next.js 15 Route Protection Middleware
  *
  * Authentication Strategy Note:
- * NextAuth v4 with strategy: "database" stores sessions in the DB, NOT in JWTs.
- * This means getToken() (which reads JWTs from cookies) returns null with database sessions.
+ * NextAuth v5 (Auth.js) with strategy: "jwt" gates routes based on session tokens.
  *
- * Chosen approach: Cookie presence check in the proxy (lightweight, no DB call).
+ * Chosen approach: Cookie presence check in the middleware (lightweight, no DB call).
  * The cookie "next-auth.session-token" (or "__Secure-next-auth.session-token" in production)
  * is set by NextAuth when a session is created. Its presence indicates the user is
- * (likely) authenticated. Full server-side validation with getServerSession() happens
- * in layouts and API routes (lib/auth-guard.ts) — NOT here in the proxy.
+ * (likely) authenticated. Full server-side validation with auth() happens
+ * in layouts and API routes (lib/auth-guard.ts) — NOT here in the middleware.
  *
- * This is the recommended NextAuth v4 + App Router + database sessions approach:
- * https://next-auth.js.org/configuration/nextjs#middleware
- *
- * Role-based access in the proxy:
+ * Role-based access in the middleware:
  * We store the user's role in a separate lightweight cookie (set after login) to
- * avoid a DB call in the proxy. The cookie is HttpOnly and signed by the session.
- * For the initial implementation, we read from a "campusai-role" cookie set server-side.
- * If the role cookie is absent (e.g., old session), the proxy redirects to /login to re-auth.
+ * avoid a DB call in the middleware. The cookie is HttpOnly.
+ * We read from a "campusai-role" cookie set server-side.
+ * If the role cookie is absent (e.g., old session), the middleware redirects to /login to re-auth.
  */
 
 import { NextResponse } from 'next/server';
@@ -48,7 +41,7 @@ const ROLE_ROUTE_MAP: Record<string, string> = {
 /** Routes accessible to any authenticated user (any role) */
 const SHARED_AUTH_ROUTES = ['/notifications', '/profile', '/settings'];
 
-/** Session cookie names (NextAuth v4 defaults) */
+/** Session cookie names (NextAuth defaults) */
 const SESSION_COOKIE_NAME =
   process.env.NODE_ENV === 'production'
     ? '__Secure-next-auth.session-token'
@@ -69,10 +62,10 @@ const ROLE_DASHBOARD: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Proxy handler
+// Middleware handler
 // ---------------------------------------------------------------------------
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Check session cookie presence
