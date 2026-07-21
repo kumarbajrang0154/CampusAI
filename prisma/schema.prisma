@@ -1,13 +1,13 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-// NOTE: Prisma v7+ — database connection is configured in prisma.config.ts
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ========== Authentication ==========
@@ -26,52 +26,51 @@ enum UserStatus {
 }
 
 /// Unified authentication model for all roles (Student, Faculty, HOD, Admin).
-/// Role-specific profile data (Student enrollment, Faculty department, etc.)
-/// will be linked in Stage 2 via one-to-one relations.
 model User {
-  id                  String     @id @default(auto()) @map("_id") @db.ObjectId
+  id                  String     @id @default(cuid())
   name                String?
   email               String     @unique
   /// @deprecated no longer used for auth now that Google OAuth is the sole sign-in method.
-  /// Retained temporarily in case of rollback; safe to remove in a future migration once confirmed stable.
   passwordHash        String?
   role                UserRole
   status              UserStatus @default(ACTIVE)
   isActive            Boolean    @default(true)
-  /// Required by NextAuth for email verification flows
   emailVerified       DateTime?
-  /// Profile photo URL (Cloudinary)
   image               String?
   lastLoginAt         DateTime?
   failedLoginAttempts Int        @default(0)
-  /// Temporary lockout after repeated failed login attempts
   lockedUntil         DateTime?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
-  /// Soft delete — do not hard-delete users, set this instead
   deletedAt           DateTime?
 
   // Relations
-  sessions     Session[]
-  accounts     Account[]
-  permissions  UserPermission[]
-  auditLogs    ActivityLog[]
-  loginHistory LoginHistory[]
+  sessions          Session[]
+  accounts          Account[]
+  permissions       UserPermission[]
+  auditLogs         ActivityLog[]
+  loginHistory      LoginHistory[]
+  discussionReplies DiscussionReply[]
 
-  // Stage 2+: Student, Faculty, HOD profile relations will be added here
+  // Role profiles (1:1 relations)
+  student Student?
+  faculty Faculty?
+  hod     HOD?
+  admin   Admin?
 
-  @@index([email])
+  // One-to-many collections
+  aiChatHistories AIChatHistory[]
+  notifications   Notification[]
+  discussions     Discussion[]
+
   @@index([role])
   @@index([status])
   @@map("users")
 }
 
-/// NextAuth Account model — supports future OAuth providers in addition to Credentials.
-/// Even though Credentials is the primary auth method, this table is required
-/// by PrismaAdapter for NextAuth to function correctly.
 model Account {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String  @db.ObjectId
+  id                String  @id @default(cuid())
+  userId            String
   type              String
   provider          String
   providerAccountId String
@@ -90,12 +89,10 @@ model Account {
   @@map("accounts")
 }
 
-/// Database-backed sessions for token revocation support.
-/// Project standard: strategy: "database" (not JWT-only).
 model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   sessionToken String   @unique
-  userId       String   @db.ObjectId
+  userId       String
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -104,10 +101,8 @@ model Session {
   @@map("sessions")
 }
 
-/// Used for email verification and password reset flows.
-/// Required by MongoDB Prisma connection to have an @id field.
 model VerificationToken {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(cuid())
   identifier String
   token      String   @unique
   expires    DateTime
@@ -116,15 +111,10 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-/// Master list of all granular permissions in the system.
-/// Keys follow the format: "{resource}.{action}" (e.g., "attendance.write", "user.manage").
-/// The RBAC system uses this table rather than hard-coded role checks.
 model Permission {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  /// Unique permission key (e.g., "attendance.read", "quiz.create")
+  id          String   @id @default(cuid())
   key         String   @unique
   description String
-  /// Logical group for display/management (e.g., "Academic", "Attendance", "AI")
   group       String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -136,12 +126,10 @@ model Permission {
   @@map("permissions")
 }
 
-/// Default permission assignments per role.
-/// These are the baseline permissions every user with that role receives.
 model RolePermission {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   role         UserRole
-  permissionId String   @db.ObjectId
+  permissionId String
 
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
@@ -150,14 +138,10 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-/// Per-user permission overrides (exceptions to role defaults).
-/// granted: true  → explicitly grant a permission even if the role doesn't have it
-/// granted: false → explicitly DENY a permission even if the role does have it
 model UserPermission {
-  id           String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId       String  @db.ObjectId
-  permissionId String  @db.ObjectId
-  /// true = grant override, false = deny override
+  id           String  @id @default(cuid())
+  userId       String
+  permissionId String
   granted      Boolean @default(true)
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -168,18 +152,13 @@ model UserPermission {
   @@map("user_permissions")
 }
 
-/// Immutable audit trail of all login attempts (successful and failed).
-/// userId is nullable to capture failed attempts for unknown emails.
 model LoginHistory {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  /// Null if the email was not found in the system
-  userId        String?  @db.ObjectId
-  /// Always captured, even for unknown emails
+  id            String   @id @default(cuid())
+  userId        String?
   email         String
   success       Boolean
   ipAddress     String?
   userAgent     String?
-  /// e.g., "invalid_password" | "account_locked" | "account_inactive"
   failureReason String?
   createdAt     DateTime @default(now())
 
@@ -191,17 +170,11 @@ model LoginHistory {
   @@map("login_history")
 }
 
-/// General audit log for admin actions: role changes, account creation/disable, password resets.
-/// Both actor (userId) and affected subject (targetUserId) are recorded.
 model ActivityLog {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  /// The user who performed the action
-  userId       String   @db.ObjectId
-  /// The user who was affected (nullable — some actions have no target user)
+  id           String   @id @default(cuid())
+  userId       String
   targetUserId String?
-  /// e.g., "USER_CREATED" | "ROLE_CHANGED" | "ACCOUNT_DISABLED" | "PASSWORD_RESET"
   action       String
-  /// Flexible JSON metadata (old value, new value, etc.)
   details      Json?
   ipAddress    String?
   createdAt    DateTime @default(now())
@@ -212,4 +185,612 @@ model ActivityLog {
   @@index([action])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// ==================== B1. Role Profiles ====================
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+model Student {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  enrollmentNo String   @unique
+  departmentId String
+  semester     Int
+  section      String
+  cgpa         Float?
+  batchYear    Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  attendances  Attendance[]
+  submissions  Submission[]
+  attempts     QuizAttempt[]
+  resume       Resume?
+  applications Application[]
+
+  @@index([departmentId])
+  @@map("students")
+}
+
+model Faculty {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  employeeId     String   @unique
+  departmentId   String
+  designation    String
+  specialization String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department     Department    @relation(fields: [departmentId], references: [id])
+
+  subjects       Subject[]
+  assignments    Assignment[]
+  timetableSlots TimetableSlot[]
+
+  @@index([departmentId])
+  @@map("faculty")
+}
+
+model HOD {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  departmentId String   @unique
+  office       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  @@map("hods")
+}
+
+model Admin {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  adminRole AdminRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admins")
+}
+
+// ==================== B2. Academic Structure ====================
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  students          Student[]
+  faculty           Faculty[]
+  hod               HOD?
+  courses           Course[]
+  academicCalendars AcademicCalendar[]
+  timetables        Timetable[]
+
+  @@map("departments")
+}
+
+model Course {
+  id           String   @id @default(cuid())
+  name         String
+  credits      Int
+  semester     Int
+  departmentId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subjects   Subject[]
+
+  @@index([departmentId])
+  @@map("courses")
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  courseId  String
+  facultyId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  faculty Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+
+  attendances    Attendance[]
+  modules        Module[]
+  assignments    Assignment[]
+  quizzes        Quiz[]
+  discussions    Discussion[]
+  timetableSlots TimetableSlot[]
+
+  @@index([courseId])
+  @@index([facultyId])
+  @@map("subjects")
+}
+
+enum ClassroomType {
+  LECTURE_HALL
+  LAB
+  SEMINAR_ROOM
+}
+
+model Classroom {
+  id             String          @id @default(cuid())
+  roomNumber     String          @unique
+  capacity       Int
+  type           ClassroomType
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  timetableSlots TimetableSlot[]
+
+  @@map("classrooms")
+}
+
+enum AcademicEventType {
+  HOLIDAY
+  EXAM
+  EVENT
+}
+
+model AcademicCalendar {
+  id           String            @id @default(cuid())
+  title        String
+  eventType    AcademicEventType
+  startDate    DateTime
+  endDate      DateTime
+  departmentId String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([departmentId])
+  @@map("academic_calendar")
+}
+
+// ==================== B3. Attendance ====================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  studentId   String
+  subjectId   String
+  date        DateTime
+  status      AttendanceStatus
+  markedById  String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([subjectId])
+  @@map("attendances")
+}
+
+// ==================== B4. LMS ====================
+
+model Module {
+  id        String   @id @default(cuid())
+  title     String
+  subjectId String
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subject   Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  resources LearningResource[]
+
+  @@index([subjectId])
+  @@map("modules")
+}
+
+enum ResourceType {
+  PDF
+  VIDEO
+  LINK
+  DOCUMENT
+}
+
+model LearningResource {
+  id        String       @id @default(cuid())
+  title     String
+  type      ResourceType
+  fileUrl   String
+  moduleId  String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId])
+  @@map("learning_resources")
+}
+
+model Assignment {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  dueDate     DateTime
+  subjectId   String
+  facultyId   String
+  maxMarks    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  submissions Submission[]
+
+  @@index([subjectId])
+  @@index([facultyId])
+  @@map("assignments")
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  LATE
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  assignmentId String
+  studentId    String
+  submittedAt  DateTime         @default(now())
+  fileUrl      String
+  marks        Float?
+  feedback     String?
+  status       SubmissionStatus
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+  @@index([studentId])
+  @@map("submissions")
+}
+
+model QuizQuestion {
+  id                 String       @id @default(cuid())
+  quizId             String
+  text               String
+  options            String[]
+  correctOptionIndex Int
+
+  quiz               Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers            QuizAnswer[]
+
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model Quiz {
+  id              String         @id @default(cuid())
+  title           String
+  subjectId       String
+  totalMarks      Int
+  durationMinutes Int
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([subjectId])
+  @@map("quizzes")
+}
+
+model QuizAnswer {
+  id                  String       @id @default(cuid())
+  attemptId           String
+  questionId          String
+  selectedOptionIndex Int
+  isCorrect           Boolean
+
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("quiz_answers")
+}
+
+model QuizAttempt {
+  id          String       @id @default(cuid())
+  quizId      String
+  studentId   String
+  score       Float
+  attemptDate DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers QuizAnswer[]
+
+  @@index([quizId])
+  @@index([studentId])
+  @@map("quiz_attempts")
+}
+
+model DiscussionReply {
+  id           String     @id @default(cuid())
+  discussionId String
+  authorId     String
+  content      String
+  createdAt    DateTime   @default(now())
+
+  discussion Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([discussionId])
+  @@index([authorId])
+  @@map("discussion_replies")
+}
+
+model Discussion {
+  id        String            @id @default(cuid())
+  subjectId String
+  authorId  String
+  title     String
+  content   String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  subject Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  author  User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies DiscussionReply[]
+
+  @@index([subjectId])
+  @@index([authorId])
+  @@map("discussions")
+}
+
+// ==================== B5. Smart Timetable ====================
+
+enum TimetableStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model TimetableSlot {
+  id           String    @id @default(cuid())
+  timetableId  String
+  day          String
+  startTime    String
+  endTime      String
+  subjectId    String
+  facultyId    String
+  classroomId  String
+  periodNumber Int
+
+  timetable Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  faculty   Faculty   @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  @@index([timetableId])
+  @@index([subjectId])
+  @@index([facultyId])
+  @@index([classroomId])
+  @@map("timetable_slots")
+}
+
+model Timetable {
+  id           String          @id @default(cuid())
+  departmentId String
+  semester     Int
+  section      String
+  academicYear String
+  status       TimetableStatus
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  department Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  slots      TimetableSlot[]
+
+  @@index([departmentId])
+  @@map("timetables")
+}
+
+// ==================== B6. Placement ====================
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  website   String
+  industry  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  drives PlacementDrive[]
+
+  @@map("companies")
+}
+
+enum PlacementDriveStatus {
+  UPCOMING
+  ONGOING
+  CLOSED
+}
+
+model PlacementDrive {
+  id                 String               @id @default(cuid())
+  companyId          String
+  packageOffered     Float
+  eligibilityCGPA    Float
+  allowedDepartments String[]
+  driveDate          DateTime
+  status             PlacementDriveStatus
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  applications Application[]
+
+  @@index([companyId])
+  @@map("placement_drives")
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  INTERVIEW
+  REJECTED
+  SELECTED
+}
+
+model Application {
+  id        String            @id @default(cuid())
+  driveId   String
+  studentId String
+  status    ApplicationStatus
+  appliedAt DateTime          @default(now())
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  drive   PlacementDrive @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  student Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  interview Interview?
+  offer     Offer?
+
+  @@index([driveId])
+  @@index([studentId])
+  @@map("applications")
+}
+
+model Resume {
+  id        String   @id @default(cuid())
+  studentId String   @unique
+  fileUrl   String
+  atsScore  Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student    Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  aiAnalysis AIResumeAnalysis?
+
+  @@map("resumes")
+}
+
+enum InterviewMode {
+  ONLINE
+  OFFLINE
+}
+
+model Interview {
+  id            String        @id @default(cuid())
+  applicationId String        @unique
+  scheduledAt   DateTime
+  mode          InterviewMode
+  result        String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("interviews")
+}
+
+enum OfferStatus {
+  RELEASED
+  ACCEPTED
+  DECLINED
+}
+
+model Offer {
+  id             String      @id @default(cuid())
+  applicationId  String      @unique
+  packageOffered Float
+  status         OfferStatus
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("offers")
+}
+
+// ==================== B7. AI Module ====================
+
+model AIChatHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  prompt    String
+  response  String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ai_chat_histories")
+}
+
+model AIResumeAnalysis {
+  id          String   @id @default(cuid())
+  resumeId    String   @unique
+  score       Float
+  suggestions String[]
+  createdAt   DateTime @default(now())
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@map("ai_resume_analyses")
+}
+
+// ==================== B8. Notifications ====================
+
+enum NotificationType {
+  ASSIGNMENT
+  QUIZ
+  PLACEMENT
+  TIMETABLE
+  ANNOUNCEMENT
+  GENERAL
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
 }

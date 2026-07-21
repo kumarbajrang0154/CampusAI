@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ColumnDef } from '@tanstack/react-table';
+import { ClassroomType } from '@prisma/client';
 
 import { DataTableLayout } from '@/components/layout/data-table-layout';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,100 +27,98 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ConfirmationDialog } from '@/components/shared/confirmation-dialog';
 
-import { DepartmentDialog } from '@/features/admin/departments/components/department-dialog';
+import { ClassroomDialog } from '@/features/admin/classrooms/components/classroom-dialog';
 import { 
-  listDepartmentsAction, 
-  deleteDepartmentAction 
-} from '@/features/admin/departments/actions/department.actions';
+  listClassroomsAction, 
+  deleteClassroomAction 
+} from '@/features/admin/classrooms/actions/classroom.actions';
 
-type DepartmentData = {
+type ClassroomData = {
   id: string;
-  name: string;
-  code: string;
+  roomNumber: string;
+  capacity: number;
+  type: ClassroomType;
   createdAt: Date;
-  _count: {
-    students: number;
-    faculty: number;
-    courses: number;
-  };
 };
 
-export default function DepartmentsPage() {
-  const [departments, setDepartments] = useState<DepartmentData[]>([]);
+export default function ClassroomsPage() {
+  const [classrooms, setClassrooms] = useState<ClassroomData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialogs state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedDept, setSelectedDept] = useState<DepartmentData | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<ClassroomData | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  // Fetch departments
-  const loadDepartments = async () => {
+  // Fetch classrooms
+  const loadClassrooms = async () => {
     setIsLoading(true);
     try {
-      const response = await listDepartmentsAction({ limit: 100 });
+      const response = await listClassroomsAction({ limit: 100 });
       if (response.success && response.data) {
-        setDepartments(response.data.departments as DepartmentData[]);
+        setClassrooms(response.data.classrooms as ClassroomData[]);
       } else {
-        toast.error(response.message || 'Failed to load departments.');
+        toast.error(response.message || 'Failed to load classrooms.');
       }
     } catch {
-      toast.error('An error occurred while loading departments.');
+      toast.error('An error occurred while loading classrooms.');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDepartments();
+    loadClassrooms();
   }, []);
 
   // Handle delete
   const handleDelete = async () => {
-    if (!selectedDept) return;
+    if (!selectedRoom) return;
     try {
-      const response = await deleteDepartmentAction(selectedDept.id);
+      const response = await deleteClassroomAction(selectedRoom.id);
       if (response.success) {
         toast.success(response.message);
-        loadDepartments();
+        loadClassrooms();
       } else {
-        toast.error(response.message || 'Failed to delete department.');
+        toast.error(response.message || 'Failed to delete classroom.');
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete department.';
+      const msg = err instanceof Error ? err.message : 'Failed to delete classroom.';
       toast.error(msg);
     } finally {
       setIsDeleteOpen(false);
-      setSelectedDept(null);
+      setSelectedRoom(null);
     }
   };
 
   // Columns definition
-  const columns: ColumnDef<DepartmentData>[] = [
+  const columns: ColumnDef<ClassroomData>[] = [
     {
-      accessorKey: 'code',
-      header: 'Code',
-      cell: ({ row }) => <span className="font-semibold text-foreground">{row.original.code}</span>,
+      accessorKey: 'roomNumber',
+      header: 'Room Number',
+      cell: ({ row }) => <span className="font-semibold text-foreground">{row.original.roomNumber}</span>,
     },
     {
-      accessorKey: 'name',
-      header: 'Name',
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      accessorKey: 'type',
+      header: 'Room Type',
+      cell: ({ row }) => {
+        const type = row.original.type;
+        switch (type) {
+          case ClassroomType.LECTURE_HALL:
+            return <Badge variant="default">Lecture Hall</Badge>;
+          case ClassroomType.LAB:
+            return <Badge variant="secondary" className="bg-purple-600 text-white hover:bg-purple-700">Lab Room</Badge>;
+          case ClassroomType.SEMINAR_ROOM:
+            return <Badge variant="outline">Seminar Room</Badge>;
+          default:
+            return <Badge variant="outline">{type}</Badge>;
+        }
+      },
     },
     {
-      accessorKey: 'courses',
-      header: 'Courses',
-      cell: ({ row }) => <span>{row.original._count.courses}</span>,
-    },
-    {
-      accessorKey: 'faculty',
-      header: 'Faculty',
-      cell: ({ row }) => <span>{row.original._count.faculty}</span>,
-    },
-    {
-      accessorKey: 'students',
-      header: 'Students',
-      cell: ({ row }) => <span>{row.original._count.students}</span>,
+      accessorKey: 'capacity',
+      header: 'Capacity (Seats)',
+      cell: ({ row }) => <span>{row.original.capacity} Seats</span>,
     },
     {
       accessorKey: 'createdAt',
@@ -128,7 +128,7 @@ export default function DepartmentsPage() {
     {
       id: 'actions',
       cell: ({ row }) => {
-        const dept = row.original;
+        const room = row.original;
         return (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -141,7 +141,7 @@ export default function DepartmentsPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onClick={() => {
-                  setSelectedDept(dept);
+                  setSelectedRoom(room);
                   setIsDialogOpen(true);
                 }}
                 className="gap-2"
@@ -151,7 +151,7 @@ export default function DepartmentsPage() {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
-                  setSelectedDept(dept);
+                  setSelectedRoom(room);
                   setIsDeleteOpen(true);
                 }}
                 className="text-destructive gap-2 focus:text-destructive focus:bg-destructive/10"
@@ -168,12 +168,12 @@ export default function DepartmentsPage() {
 
   return (
     <DataTableLayout
-      title="Departments"
-      description="Manage campus departments, academic structures, and view staff/student distributions."
+      title="Classroom Settings"
+      description="Manage campus classrooms, lab facilities, seminar spaces, and seating capacities."
       action={
-        <Button size="sm" onClick={() => { setSelectedDept(null); setIsDialogOpen(true); }}>
+        <Button size="sm" onClick={() => { setSelectedRoom(null); setIsDialogOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Department
+          Add Classroom
         </Button>
       }
     >
@@ -181,35 +181,35 @@ export default function DepartmentsPage() {
         <div className="flex h-[200px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : departments.length === 0 ? (
+      ) : classrooms.length === 0 ? (
         <EmptyState
           icon={Building}
-          title="No Departments Found"
-          description="Get started by creating your first academic department."
-          actionLabel="Create Department"
-          onAction={() => { setSelectedDept(null); setIsDialogOpen(true); }}
+          title="No Classrooms Found"
+          description="Get started by creating your first classroom facility."
+          actionLabel="Create Classroom"
+          onAction={() => { setSelectedRoom(null); setIsDialogOpen(true); }}
         />
       ) : (
         <DataTable
           columns={columns}
-          data={departments}
-          searchPlaceholder="Search departments by name or code..."
-          searchColumn="name"
+          data={classrooms}
+          searchPlaceholder="Search classrooms by room number..."
+          searchColumn="roomNumber"
         />
       )}
 
-      <DepartmentDialog
+      <ClassroomDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        department={selectedDept}
-        onSuccess={loadDepartments}
+        classroom={selectedRoom}
+        onSuccess={loadClassrooms}
       />
 
       <ConfirmationDialog
         isOpen={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
-        title="Delete Department"
-        description={`Are you sure you want to delete the department "${selectedDept?.name}"? This action is permanent and cannot be undone.`}
+        title="Delete Classroom"
+        description={`Are you sure you want to delete the room "${selectedRoom?.roomNumber}"? This action is permanent and cannot be undone.`}
         confirmLabel="Delete"
         isDestructive
         onConfirm={handleDelete}

@@ -1,8 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 
 try {
   const envPath = path.join(process.cwd(), '.env');
@@ -31,9 +29,7 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function main() {
   const loginHistories = await prisma.loginHistory.findMany();
@@ -46,5 +42,4 @@ main()
   .catch((e) => console.error(e))
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

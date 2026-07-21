@@ -61,3 +61,5 @@ next-env.d.ts
 desktop.ini
 
 # NOTE: prisma/migrations IS intentionally committed (do NOT add it here)
+
+.vercel

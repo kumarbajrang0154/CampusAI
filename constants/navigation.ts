@@ -71,6 +71,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Departments', icon: Building, href: '/admin/departments' },
   { label: 'Courses', icon: BookOpenCheck, href: '/admin/courses' },
   { label: 'Subjects', icon: BookOpen, href: '/admin/subjects' },
+  { label: 'Classrooms', icon: Settings, href: '/admin/classrooms' },
   { label: 'Semesters', icon: FolderTree, href: '/admin/semesters' },
   { label: 'Timetable', icon: Calendar, href: '/admin/timetable' },
   { label: 'Academics', icon: GraduationCap, href: '/admin/academics' },
