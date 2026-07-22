@@ -1,7 +1,6 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import { cookies } from 'next/headers';
 
 import prisma from '@/lib/prisma';
 import { getUserPermissions } from '@/lib/permissions';
@@ -37,6 +36,7 @@ async function logLoginAttempt({
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: 'jwt',
@@ -138,14 +138,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = user.role;
         token.permissions = await getUserPermissions(user.id);
-
-        // Set the lightweight role cookie for middleware gating
-        const cookieStore = await cookies();
-        cookieStore.set('campusai-role', user.role as string, {
-          path: '/',
-          maxAge: 30 * 24 * 60 * 60, // 30 days
-          sameSite: 'lax',
-        });
       }
       return token;
     },

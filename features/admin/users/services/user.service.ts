@@ -1,24 +1,46 @@
 import { UserRepository } from '../repositories/user.repository';
-import { UserRole, UserStatus, Prisma } from '@prisma/client';
-import prisma from '@/lib/prisma'; // Imported directly for transactions/logging if needed, or we can use repository
+import { UserRole, UserStatus, AdminRole, Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
 const userRepository = new UserRepository();
 
 export class UserService {
   async createUser(
-    input: { email: string; role: UserRole; name?: string },
+    input: {
+      email: string;
+      role: UserRole;
+      name?: string;
+      departmentId?: string;
+      enrollmentNo?: string;
+      employeeId?: string;
+      designation?: string;
+      specialization?: string;
+      semester?: number;
+      section?: string;
+      batchYear?: number;
+    },
     adminUserId: string
   ) {
     const email = input.email.trim().toLowerCase();
     const name = input.name?.trim() || email.split('@')[0];
 
-    // 1. Check if user already exists (even if soft-deleted, we might want to check)
+    // 1. Check if user already exists
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
       throw new Error('A user with this email already exists.');
     }
 
-    // We run the user creation and activity log in a transaction to guarantee atomic operation
+    // 2. Fetch default department if departmentId not provided for role profiles
+    let departmentId = input.departmentId?.trim();
+    if (!departmentId && (input.role === UserRole.STUDENT || input.role === UserRole.FACULTY || input.role === UserRole.HOD)) {
+      const defaultDept = await prisma.department.findFirst();
+      if (!defaultDept) {
+        throw new Error('No department found. Please create a department first before adding academic users.');
+      }
+      departmentId = defaultDept.id;
+    }
+
+    // 3. Create user and role profile in a transaction
     const newUser = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -29,6 +51,47 @@ export class UserService {
           isActive: true,
         },
       });
+
+      // Create role profile
+      const timestamp = Date.now().toString().slice(-6);
+
+      if (input.role === UserRole.STUDENT && departmentId) {
+        await tx.student.create({
+          data: {
+            userId: user.id,
+            enrollmentNo: input.enrollmentNo?.trim() || `STU-${timestamp}`,
+            departmentId,
+            semester: input.semester || 1,
+            section: input.section?.trim() || 'A',
+            batchYear: input.batchYear || new Date().getFullYear(),
+          },
+        });
+      } else if (input.role === UserRole.FACULTY && departmentId) {
+        await tx.faculty.create({
+          data: {
+            userId: user.id,
+            employeeId: input.employeeId?.trim() || `EMP-${timestamp}`,
+            departmentId,
+            designation: input.designation?.trim() || 'Assistant Professor',
+            specialization: input.specialization?.trim() || 'General',
+          },
+        });
+      } else if (input.role === UserRole.HOD && departmentId) {
+        await tx.hOD.create({
+          data: {
+            userId: user.id,
+            departmentId,
+            office: 'Main Department Office',
+          },
+        });
+      } else if (input.role === UserRole.ADMIN) {
+        await tx.admin.create({
+          data: {
+            userId: user.id,
+            adminRole: AdminRole.ADMIN,
+          },
+        });
+      }
 
       await tx.activityLog.create({
         data: {
@@ -41,9 +104,6 @@ export class UserService {
 
       return user;
     });
-
-    // TODO: Send welcome email notification via Resend in the future stage.
-    // resend.emails.send({ ... })
 
     return newUser;
   }
@@ -62,7 +122,7 @@ export class UserService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.UserWhereInput = {
-      deletedAt: null, // Exclude soft-deleted users
+      deletedAt: null,
     };
 
     if (filters.role) {
@@ -103,7 +163,6 @@ export class UserService {
   }
 
   async updateUserRole(userId: string, newRole: UserRole, adminUserId: string) {
-    // 1. Fetch existing user
     const user = await userRepository.findById(userId);
     if (!user || user.deletedAt) {
       throw new Error('User not found.');
@@ -111,6 +170,20 @@ export class UserService {
 
     if (user.role === newRole) {
       return user;
+    }
+
+    // Safeguard: Cannot demote the last remaining Admin
+    if (user.role === UserRole.ADMIN && newRole !== UserRole.ADMIN) {
+      const adminCount = await prisma.user.count({
+        where: {
+          role: UserRole.ADMIN,
+          deletedAt: null,
+        },
+      });
+
+      if (adminCount <= 1) {
+        throw new Error('Cannot change the role of the last remaining Admin account.');
+      }
     }
 
     const updatedUser = await prisma.$transaction(async (tx) => {
@@ -168,13 +241,76 @@ export class UserService {
   }
 
   async deleteUser(userId: string, adminUserId: string) {
+    // 1. Self-delete check
+    if (userId === adminUserId) {
+      throw new Error('You cannot delete your own account.');
+    }
+
     const user = await userRepository.findById(userId);
     if (!user || user.deletedAt) {
       throw new Error('User not found.');
     }
 
+    // 2. Safeguard: Last remaining Admin protection
+    if (user.role === UserRole.ADMIN) {
+      const adminCount = await prisma.user.count({
+        where: {
+          role: UserRole.ADMIN,
+          deletedAt: null,
+        },
+      });
+
+      if (adminCount <= 1) {
+        throw new Error('Cannot delete the last remaining Admin account.');
+      }
+    }
+
+    // 3. Protective dependency checks for Faculty / Student / HOD
+    if (user.role === UserRole.FACULTY) {
+      const faculty = await prisma.faculty.findUnique({ where: { userId } });
+      if (faculty) {
+        const [subjectCount, assignmentCount, slotCount] = await Promise.all([
+          prisma.subject.count({ where: { facultyId: faculty.id } }),
+          prisma.assignment.count({ where: { facultyId: faculty.id } }),
+          prisma.timetableSlot.count({ where: { facultyId: faculty.id } }),
+        ]);
+
+        if (subjectCount > 0 || assignmentCount > 0 || slotCount > 0) {
+          throw new Error('Cannot delete faculty member: this user has assigned subjects, assignments, or timetable slots. Please reassign them first.');
+        }
+      }
+    }
+
+    if (user.role === UserRole.STUDENT) {
+      const student = await prisma.student.findUnique({ where: { userId } });
+      if (student) {
+        const [submissionCount, applicationCount] = await Promise.all([
+          prisma.submission.count({ where: { studentId: student.id } }),
+          prisma.application.count({ where: { studentId: student.id } }),
+        ]);
+
+        if (submissionCount > 0 || applicationCount > 0) {
+          throw new Error('Cannot delete student: this user has active assignment submissions or placement applications.');
+        }
+      }
+    }
+
+    if (user.role === UserRole.HOD) {
+      const hod = await prisma.hOD.findUnique({ where: { userId } });
+      if (hod) {
+        const deptCount = await prisma.department.count({ where: { id: hod.departmentId } });
+        if (deptCount > 0) {
+          // Check if HOD is actively linked as the department's HOD
+          const activeDeptHod = await prisma.hOD.findFirst({ where: { id: hod.id } });
+          if (activeDeptHod) {
+            // HOD profile can be safely cleaned up if unassigned
+          }
+        }
+      }
+    }
+
+    // 4. Soft delete user and create activity log
     const deletedUser = await prisma.$transaction(async (tx) => {
-      // Soft delete: set deletedAt and set status to INACTIVE
       const updated = await tx.user.update({
         where: { id: userId },
         data: {

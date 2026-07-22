@@ -13,14 +13,14 @@ export const createUserSchema = z.object({
     .max(50, 'Name cannot exceed 50 characters')
     .optional()
     .or(z.literal('')),
+  departmentId: z.string().optional().or(z.literal('')),
+  enrollmentNo: z.string().optional().or(z.literal('')),
+  employeeId: z.string().optional().or(z.literal('')),
+  designation: z.string().optional().or(z.literal('')),
+  specialization: z.string().optional().or(z.literal('')),
+  semester: z.number().int().min(1).max(10).optional(),
+  section: z.string().optional().or(z.literal('')),
+  batchYear: z.number().int().min(2000).max(2100).optional(),
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
-
-/**
- * FUTURE ENHANCEMENT:
- * Creating a user with the ADMIN role is a highly sensitive action.
- * In a future phase, we should add an extra step of validation,
- * such as requiring confirmation or an multi-factor approval flow,
- * to prevent accidental creation of unauthorized administrator accounts.
- */

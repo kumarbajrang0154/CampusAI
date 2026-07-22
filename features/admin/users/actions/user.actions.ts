@@ -2,13 +2,13 @@
 
 import { requirePermission } from '@/lib/auth-guard';
 import { UserService } from '../services/user.service';
-import { createUserSchema } from '../schemas/user.schema';
+import { createUserSchema, CreateUserInput } from '../schemas/user.schema';
 import { UserRole, UserStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
 const userService = new UserService();
 
-export async function createUserAction(data: { email: string; role: UserRole; name?: string }) {
+export async function createUserAction(data: CreateUserInput) {
   try {
     const session = await requirePermission('user.manage');
     const validated = createUserSchema.parse(data);
@@ -18,7 +18,7 @@ export async function createUserAction(data: { email: string; role: UserRole; na
 
     return {
       success: true,
-      message: 'User created successfully.',
+      message: 'User account pre-provisioned successfully.',
       data: newUser,
     };
   } catch (error: any) {
@@ -59,7 +59,10 @@ export async function updateUserRoleAction(userId: string, newRole: UserRole) {
     const session = await requirePermission('user.manage');
 
     if (userId === session.user.id) {
-      throw new Error('You cannot modify your own role.');
+      return {
+        success: false,
+        message: 'You cannot modify your own role.',
+      };
     }
 
     const updatedUser = await userService.updateUserRole(userId, newRole, session.user.id);
@@ -84,7 +87,10 @@ export async function toggleUserStatusAction(userId: string) {
     const session = await requirePermission('user.manage');
 
     if (userId === session.user.id) {
-      throw new Error('You cannot deactivate your own account.');
+      return {
+        success: false,
+        message: 'You cannot deactivate your own account.',
+      };
     }
 
     const updatedUser = await userService.toggleUserStatus(userId, session.user.id);
@@ -109,7 +115,10 @@ export async function deleteUserAction(userId: string) {
     const session = await requirePermission('user.manage');
 
     if (userId === session.user.id) {
-      throw new Error('You cannot delete your own account.');
+      return {
+        success: false,
+        message: 'You cannot delete your own account.',
+      };
     }
 
     const deletedUser = await userService.deleteUser(userId, session.user.id);

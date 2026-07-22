@@ -102,6 +102,12 @@ export default function UserManagementPage() {
   // Handle status toggle
   const handleToggleStatus = async () => {
     if (!selectedUser) return;
+    if (selectedUser.id === currentUserId) {
+      toast.error('You cannot deactivate your own account.');
+      setDialogType(null);
+      setSelectedUser(null);
+      return;
+    }
     try {
       const response = await toggleUserStatusAction(selectedUser.id);
       if (response.success) {
@@ -121,6 +127,12 @@ export default function UserManagementPage() {
   // Handle delete user
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
+    if (selectedUser.id === currentUserId) {
+      toast.error('You cannot delete your own account.');
+      setDialogType(null);
+      setSelectedUser(null);
+      return;
+    }
     try {
       const response = await deleteUserAction(selectedUser.id);
       if (response.success) {
@@ -139,6 +151,10 @@ export default function UserManagementPage() {
 
   // Handle role change
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    if (userId === currentUserId) {
+      toast.error('You cannot modify your own role.');
+      return;
+    }
     try {
       const response = await updateUserRoleAction(userId, newRole);
       if (response.success) {
@@ -182,7 +198,7 @@ export default function UserManagementPage() {
             <span className="font-medium text-foreground flex items-center gap-1.5">
               {user.name || emailLocalPart}
               {isSelf && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
                   You
                 </Badge>
               )}
@@ -279,7 +295,7 @@ export default function UserManagementPage() {
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" disabled={isSelf}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">Open menu</span>
                 </Button>
@@ -289,7 +305,7 @@ export default function UserManagementPage() {
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>Change Role</DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger disabled={isSelf}>Change Role</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onClick={() => handleRoleChange(user.id, UserRole.STUDENT)} disabled={user.role === UserRole.STUDENT}>
                     Student
@@ -307,7 +323,12 @@ export default function UserManagementPage() {
               </DropdownMenuSub>
 
               <DropdownMenuItem
+                disabled={isSelf}
                 onClick={() => {
+                  if (isSelf) {
+                    toast.error('You cannot deactivate your own account.');
+                    return;
+                  }
                   setSelectedUser(user);
                   setDialogType('toggle');
                 }}
@@ -329,7 +350,12 @@ export default function UserManagementPage() {
 
               <DropdownMenuItem
                 variant="destructive"
+                disabled={isSelf}
                 onClick={() => {
+                  if (isSelf) {
+                    toast.error('You cannot delete your own account.');
+                    return;
+                  }
                   setSelectedUser(user);
                   setDialogType('delete');
                 }}

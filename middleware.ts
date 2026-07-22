@@ -1,24 +1,14 @@
 /**
  * middleware.ts — Next.js 15 Route Protection Middleware
  *
- * Authentication Strategy Note:
- * NextAuth v5 (Auth.js) with strategy: "jwt" gates routes based on session tokens.
- *
- * Chosen approach: Cookie presence check in the middleware (lightweight, no DB call).
- * The cookie "next-auth.session-token" (or "__Secure-next-auth.session-token" in production)
- * is set by NextAuth when a session is created. Its presence indicates the user is
- * (likely) authenticated. Full server-side validation with auth() happens
- * in layouts and API routes (lib/auth-guard.ts) — NOT here in the middleware.
- *
- * Role-based access in the middleware:
- * We store the user's role in a separate lightweight cookie (set after login) to
- * avoid a DB call in the middleware. The cookie is HttpOnly.
- * We read from a "campusai-role" cookie set server-side.
- * If the role cookie is absent (e.g., old session), the middleware redirects to /login to re-auth.
+ * Authentication & RBAC Strategy:
+ * Reads NextAuth JWT session token via `getToken()` from `next-auth/jwt`.
+ * Decodes session token directly in edge middleware (no DB calls required).
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 // ---------------------------------------------------------------------------
 // Route Configuration
@@ -41,19 +31,7 @@ const ROLE_ROUTE_MAP: Record<string, string> = {
 /** Routes accessible to any authenticated user (any role) */
 const SHARED_AUTH_ROUTES = ['/notifications', '/profile', '/settings'];
 
-/** Session cookie names (NextAuth defaults) */
-const SESSION_COOKIE_NAME =
-  process.env.NODE_ENV === 'production'
-    ? '__Secure-next-auth.session-token'
-    : 'next-auth.session-token';
-
-/** Lightweight role cookie set by the session callback (server-side) */
-const ROLE_COOKIE_NAME = 'campusai-role';
-
-// ---------------------------------------------------------------------------
-// Role → Dashboard mapping
-// ---------------------------------------------------------------------------
-
+/** Role → Dashboard mapping */
 const ROLE_DASHBOARD: Record<string, string> = {
   STUDENT: '/student/dashboard',
   FACULTY: '/faculty/dashboard',
@@ -65,22 +43,25 @@ const ROLE_DASHBOARD: Record<string, string> = {
 // Middleware handler
 // ---------------------------------------------------------------------------
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Check session cookie presence
-  const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const isAuthenticated = Boolean(sessionToken);
+  // Read JWT session token directly from NextAuth
+  const token = await getToken({
+    req: request,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === 'production',
+  });
 
-  // 2. Read role from the lightweight role cookie
-  const userRole = request.cookies.get(ROLE_COOKIE_NAME)?.value;
+  const isAuthenticated = Boolean(token);
+  const userRole = token?.role as string | undefined;
 
-  // 3. Public routes — always allow
+  // 1. Public routes — always allow
   if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))) {
     return NextResponse.next();
   }
 
-  // 4. Auth routes — redirect authenticated users to their dashboard
+  // 2. Auth routes — redirect authenticated users to their role dashboard
   if (AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))) {
     if (isAuthenticated && userRole && ROLE_DASHBOARD[userRole]) {
       return NextResponse.redirect(new URL(ROLE_DASHBOARD[userRole], request.url));
@@ -88,32 +69,23 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 5. Protected routes — require authentication
+  // 3. Protected routes — require authentication
   if (!isAuthenticated) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
-    const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete(ROLE_COOKIE_NAME);
-    return response;
+    return NextResponse.redirect(loginUrl);
   }
 
-  // 6. Shared authenticated routes — any logged-in role
+  // 4. Shared authenticated routes — any logged-in role
   if (SHARED_AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))) {
     return NextResponse.next();
   }
 
-  // 7. Role-specific routes — check role matches
+  // 5. Role-specific routes — check role matches
   for (const [routePrefix, requiredRole] of Object.entries(ROLE_ROUTE_MAP)) {
     if (pathname === routePrefix || pathname.startsWith(routePrefix + '/')) {
-      // No role cookie — send back to login to re-establish session
-      if (!userRole) {
-        const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('callbackUrl', pathname);
-        return NextResponse.redirect(loginUrl);
-      }
-
       // Role mismatch — show 403
-      if (userRole !== requiredRole) {
+      if (userRole && userRole !== requiredRole) {
         return NextResponse.redirect(new URL('/403', request.url));
       }
 
@@ -121,24 +93,16 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // 8. All other routes — allow (API routes, etc. are excluded by matcher)
+  // 6. All other routes — allow
   return NextResponse.next();
 }
 
 // ---------------------------------------------------------------------------
-// Matcher — excludes internal Next.js routes and static assets
+// Matcher — excludes internal Next.js routes, API routes, and static assets
 // ---------------------------------------------------------------------------
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths EXCEPT:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     * - public folder files (images, icons)
-     * - /api/auth/* (NextAuth handles its own auth)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/auth/).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|public/).*)',
   ],
 };
