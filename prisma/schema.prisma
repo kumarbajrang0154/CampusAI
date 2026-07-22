@@ -59,9 +59,10 @@ model User {
   admin   Admin?
 
   // One-to-many collections
-  aiChatHistories AIChatHistory[]
-  notifications   Notification[]
-  discussions     Discussion[]
+  aiChatHistories   AIChatHistory[]
+  notifications     Notification[]   @relation("UserNotifications")
+  sentNotifications Notification[]   @relation("SentNotifications")
+  discussions       Discussion[]
 
   @@index([role])
   @@index([status])
@@ -794,16 +795,22 @@ enum NotificationType {
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  title     String
-  message   String
-  type      NotificationType
-  isRead    Boolean          @default(false)
-  createdAt DateTime         @default(now())
+  id             String           @id @default(cuid())
+  userId         String
+  title          String
+  message        String
+  type           NotificationType
+  isRead         Boolean          @default(false)
+  batchId        String?
+  audienceType   String?
+  audienceTarget String?
+  senderId       String?
+  createdAt      DateTime         @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User  @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  sender User? @relation("SentNotifications", fields: [senderId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([batchId])
   @@map("notifications")
 }

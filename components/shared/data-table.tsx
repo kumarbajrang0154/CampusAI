@@ -49,6 +49,7 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+
   const table = useReactTable({
     data,
     columns,
@@ -68,45 +69,63 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  const handleExportStub = () => {
-    alert('Export functionality is stubbed and will be implemented in a future phase.');
+  // Real CSV Export
+  const handleExport = () => {
+    if (!data || data.length === 0) return;
+
+    const visibleColumns = table.getAllColumns().filter((c) => c.getIsVisible());
+    const headers = visibleColumns.map((c) => c.id);
+
+    const rows = table.getFilteredRowModel().rows.map((row) => {
+      return visibleColumns.map((col) => {
+        const val = row.getValue(col.id);
+        if (val === null || val === undefined) return '""';
+        if (typeof val === 'object') return `"${JSON.stringify(val).replace(/"/g, '""')}"`;
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }).join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-1 items-center max-w-sm relative">
-          <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={
-              searchColumn
-                ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''
-                : ''
-            }
-            onChange={(event) =>
-              searchColumn && table.getColumn(searchColumn)?.setFilterValue(event.target.value)
-            }
-            className="pl-9"
-            disabled={!searchColumn}
-          />
-        </div>
+        {searchColumn ? (
+          <div className="flex flex-1 items-center max-w-sm relative">
+            <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder={searchPlaceholder}
+              value={(table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''}
+              onChange={(event) =>
+                table.getColumn(searchColumn)?.setFilterValue(event.target.value)
+              }
+              className="pl-9"
+            />
+          </div>
+        ) : (
+          <div />
+        )}
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportStub}>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
-            Export
+            Export CSV
           </Button>
 
           <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="outline" size="sm">
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  Columns
-                </Button>
-              }
-            />
+            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-lg border border-input bg-background hover:bg-muted text-sm font-medium h-8 px-3 py-1 text-foreground transition-colors cursor-pointer outline-none">
+              <Settings2 className="mr-2 h-4 w-4" />
+              Columns
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {table
                 .getAllColumns()
@@ -169,8 +188,7 @@ export function DataTable<TData, TValue>({
 
       <div className="flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{' '}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          Showing {table.getRowModel().rows.length} of {data.length} total user(s).
         </div>
         <div className="flex items-center space-x-2">
           <Button

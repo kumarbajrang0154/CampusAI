@@ -43,6 +43,14 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { ConfirmationDialog } from '@/components/shared/confirmation-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { UserOverrideManager } from '@/features/admin/roles/components/user-override-manager';
 
 import { AddUserDialog } from '@/features/admin/users/components/add-user-dialog';
 import { 
@@ -75,7 +83,7 @@ export default function UserManagementPage() {
 
   // Confirmation dialogs state
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
-  const [dialogType, setDialogType] = useState<'toggle' | 'delete' | null>(null);
+  const [dialogType, setDialogType] = useState<'toggle' | 'delete' | 'override' | null>(null);
 
   // Fetch users
   const loadUsers = async () => {
@@ -341,6 +349,16 @@ export default function UserManagementPage() {
                 )}
               </DropdownMenuItem>
 
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectedUser(user);
+                  setDialogType('override');
+                }}
+              >
+                <Shield className="mr-2 h-4 w-4 text-primary" />
+                Manage Overrides
+              </DropdownMenuItem>
+
               <DropdownMenuSeparator />
 
               <DropdownMenuItem
@@ -457,6 +475,21 @@ export default function UserManagementPage() {
           onConfirm={handleDeleteUser}
           isDestructive={true}
         />
+      )}
+
+      {/* Dialog for User Overrides */}
+      {dialogType === 'override' && selectedUser && (
+        <Dialog open={true} onOpenChange={(open) => { if (!open) setDialogType(null); }}>
+          <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Manage Permission Overrides</DialogTitle>
+              <DialogDescription>
+                Grant or revoke specific permission overrides for {selectedUser.name || selectedUser.email}.
+              </DialogDescription>
+            </DialogHeader>
+            <UserOverrideManager initialUserId={selectedUser.id} />
+          </DialogContent>
+        </Dialog>
       )}
     </DataTableLayout>
   );

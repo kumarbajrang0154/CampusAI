@@ -17,7 +17,10 @@ import {
   Settings,
   Sparkles,
   Menu,
+  CheckCheck,
+  Loader2,
 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,7 +35,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useSidebarStore, useNotificationStore } from '@/store';
+import {
+  getUserNotificationsAction,
+  markNotificationAsReadAction,
+  markAllNotificationsAsReadAction,
+} from '@/features/admin/notifications/actions/notification.actions';
 
 // Role dashboard map
 const ROLE_DASHBOARDS: Record<string, string> = {
@@ -60,24 +69,27 @@ const QUICK_ACTIONS: Record<
     { label: 'View Assignments', href: '/student/assignments', icon: PlusCircle },
   ],
   FACULTY: [
-    { label: 'Create Quiz', href: '/faculty/quizzes', icon: PlusCircle },
+    { label: 'Mark Attendance', href: '/faculty/attendance', icon: PlusCircle },
+    { label: 'Create Assignment', href: '/faculty/assignments', icon: PlusCircle },
   ],
   HOD: [
-    { label: 'Department Analytics', href: '/hod/analytics', icon: PlusCircle },
-    { label: 'Faculty List', href: '/hod/faculty', icon: PlusCircle },
+    { label: 'Department Analytics', href: '/hod/reports', icon: Sparkles },
+    { label: 'Manage Faculty', href: '/hod/faculty', icon: User },
   ],
   ADMIN: [
-    { label: 'Add User', href: '/admin/users', icon: PlusCircle },
-    { label: 'System Configuration', href: '/admin/settings', icon: PlusCircle },
+    { label: 'Manage Users', href: '/admin/users', icon: User },
+    { label: 'Timetable Builder', href: '/admin/timetable', icon: PlusCircle },
   ],
 };
 
-// Mock notifications
-const MOCK_NOTIFICATIONS = [
-  { id: 1, text: 'New assignment posted in Web Development', time: '10m ago' },
-  { id: 2, text: 'AI placement readiness analysis updated', time: '1h ago' },
-  { id: 3, text: 'Quiz score released for Software Engineering', time: '3h ago' },
-];
+interface UserNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string | Date;
+}
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -94,6 +106,58 @@ export function Navbar() {
   const userName = session?.user?.name ?? 'User';
   const userEmail = session?.user?.email ?? '';
   const initials = userName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase();
+
+  // Notification State
+  const [notifications, setNotifications] = React.useState<UserNotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState<number>(0);
+  const [loadingNotifs, setLoadingNotifs] = React.useState<boolean>(false);
+
+  // Fetch notifications on mount and popover toggle
+  const loadNotifications = React.useCallback(async () => {
+    if (!session?.user?.id) return;
+    setLoadingNotifs(true);
+    try {
+      const res = await getUserNotificationsAction(10);
+      if (res.success && res.data) {
+        setNotifications(res.data.notifications as UserNotificationItem[]);
+        setUnreadCount(res.data.unreadCount);
+      }
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, [session?.user?.id]);
+
+  React.useEffect(() => {
+    if (session?.user?.id) {
+      loadNotifications();
+    }
+  }, [session?.user?.id, loadNotifications]);
+
+  const handleTogglePopover = (open: boolean) => {
+    toggleNotif();
+    if (open) {
+      loadNotifications();
+    }
+  };
+
+  const handleMarkAsRead = async (notifId: string) => {
+    // Optimistic UI update
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n))
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    await markNotificationAsReadAction(notifId);
+  };
+
+  const handleMarkAllRead = async () => {
+    if (unreadCount === 0) return;
+    // Optimistic UI update
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+
+    await markAllNotificationsAsReadAction();
+  };
 
   const handleLogout = async () => {
     // Clear cookie
@@ -118,40 +182,37 @@ export function Navbar() {
         </div>
 
         {/* Search box */}
-        <div className="flex-1 max-w-md relative hidden md:block">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input placeholder={searchPlaceholder} className="pl-9 w-full bg-muted/40" />
+        <div className="hidden md:flex flex-1 max-w-md items-center relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={searchPlaceholder}
+            className="pl-9 pr-4 h-9 text-sm bg-muted/40 focus:bg-background transition-colors"
+          />
         </div>
 
-        {/* Right side items */}
-        <div className="flex items-center gap-2">
+        {/* Right Actions */}
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Quick Actions Dropdown */}
-          {actions.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button size="sm" className="gap-1.5 h-9">
-                    <PlusCircle className="h-4 w-4" />
-                    <span className="hidden sm:inline">Actions</span>
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {actions.map((act) => (
-                    <DropdownMenuItem key={act.label} onClick={() => router.push(act.href)}>
-                      <act.icon className="mr-2 h-4 w-4" />
-                      {act.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9 text-xs">
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Quick Actions</span>
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-48">
+              {actions.map((act) => (
+                <DropdownMenuItem key={act.label} onClick={() => router.push(act.href)}>
+                  <act.icon className="mr-2 h-4 w-4" />
+                  <span>{act.label}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-          {/* Theme toggler */}
+          {/* Theme switcher */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -176,29 +237,92 @@ export function Navbar() {
           </DropdownMenu>
 
           {/* Notification bell popover */}
-          <Popover open={isNotifOpen} onOpenChange={toggleNotif}>
+          <Popover open={isNotifOpen} onOpenChange={handleTogglePopover}>
             <PopoverTrigger
               render={
                 <Button variant="ghost" size="icon" className="h-9 w-9 relative">
                   <Bell className="h-5 w-5" />
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1 animate-pulse shadow-sm">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </Button>
               }
             />
-            <PopoverContent className="w-80" align="end">
-              <div className="flex items-center justify-between border-b pb-2 mb-2">
-                <span className="font-semibold text-sm">Notifications</span>
-                <span className="text-xs text-muted-foreground hover:underline cursor-pointer">
-                  Mark all read
-                </span>
+            <PopoverContent className="w-80 sm:w-96 p-0" align="end">
+              <div className="flex items-center justify-between border-b px-4 py-3 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">Notifications</span>
+                  {unreadCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary">
+                      {unreadCount} new
+                    </Badge>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  disabled={unreadCount === 0}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" /> Mark all read
+                </button>
               </div>
-              <div className="space-y-3">
-                {MOCK_NOTIFICATIONS.map((notif) => (
-                  <div key={notif.id} className="text-xs space-y-1 hover:bg-muted/50 p-1.5 rounded cursor-pointer transition-colors">
-                    <p className="font-medium text-foreground/90">{notif.text}</p>
-                    <span className="text-muted-foreground text-[10px]">{notif.time}</span>
+
+              <div className="max-h-[360px] overflow-y-auto divide-y">
+                {loadingNotifs ? (
+                  <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-primary" /> Loading notifications...
                   </div>
-                ))}
+                ) : notifications.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    <Bell className="h-6 w-6 text-muted-foreground/40 mx-auto mb-1" />
+                    <p className="font-medium text-foreground/80">No notifications yet</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      You will see alerts here when announcements or updates arrive.
+                    </p>
+                  </div>
+                ) : (
+                  notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => !notif.isRead && handleMarkAsRead(notif.id)}
+                      className={`p-3 text-xs space-y-1 hover:bg-muted/50 cursor-pointer transition-colors relative ${
+                        !notif.isRead ? 'bg-primary/[0.03]' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {!notif.isRead && (
+                            <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                          )}
+                          <p className="font-semibold text-foreground/90 leading-tight">
+                            {notif.title}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono uppercase shrink-0">
+                          {notif.type}
+                        </Badge>
+                      </div>
+
+                      <p className="text-muted-foreground line-clamp-2 text-[11px] pl-3.5">
+                        {notif.message}
+                      </p>
+
+                      <div className="flex items-center justify-between pl-3.5 pt-0.5">
+                        <span className="text-muted-foreground/80 text-[10px]">
+                          {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}
+                        </span>
+                        {!notif.isRead && (
+                          <span className="text-[10px] text-primary hover:underline">
+                            Mark as read
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </PopoverContent>
           </Popover>
@@ -227,21 +351,16 @@ export function Navbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.push(`/${role.toLowerCase()}/profile`)}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
+                  <User className="mr-2 h-4 w-4" /> Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push(`/${role.toLowerCase()}/settings`)}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  <Settings className="mr-2 h-4 w-4" /> Settings
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Log out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
