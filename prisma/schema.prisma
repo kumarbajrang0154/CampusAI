@@ -622,6 +622,19 @@ model Timetable {
   @@map("timetables")
 }
 
+model PeriodTemplate {
+  id           String   @id @default(cuid())
+  periodNumber Int      @unique
+  startTime    String
+  endTime      String
+  isBreak      Boolean  @default(false)
+  breakLabel   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("period_templates")
+}
+
 // ==================== B6. Placement ====================
 
 model Company {
