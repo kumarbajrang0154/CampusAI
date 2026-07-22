@@ -3,7 +3,7 @@
 /**
  * features/auth/components/login-form.tsx
  *
- * Reusable login form component. Now converted to Google OAuth only.
+ * Reusable login form component. Google OAuth only.
  * Gated by a pre-provisioning check in NextAuth.
  */
 
@@ -32,6 +32,8 @@ function getErrorMessage(error: string | null): string | null {
       return 'Something went wrong on our end. Please try again in a moment.';
     case 'Verification':
       return 'Verification link has expired or has already been used.';
+    case 'Configuration':
+      return 'Authentication configuration error. Please check system setup or contact support.';
     case 'OAuthSignin':
     case 'OAuthCallback':
     case 'OAuthCreateAccount':
@@ -40,6 +42,7 @@ function getErrorMessage(error: string | null): string | null {
     case 'OAuthAccountNotLinked':
     case 'EmailSignin':
     case 'CredentialsSignin':
+    case 'SessionRequired':
     default:
       return 'Sign-in failed. Please try again or contact support.';
   }

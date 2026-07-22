@@ -54,7 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
         if (!user.email) {
-          return '/?error=NoAccount';
+          return '/login?error=NoAccount';
         }
 
         try {
@@ -68,7 +68,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               success: false,
               failureReason: 'user_not_found',
             });
-            return '/?error=NoAccount';
+            return '/login?error=NoAccount';
           }
 
           if (dbUser.deletedAt) {
@@ -78,7 +78,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               success: false,
               failureReason: 'account_deleted',
             });
-            return '/?error=AccountInactive';
+            return '/login?error=AccountInactive';
           }
 
           if (dbUser.status !== 'ACTIVE' || !dbUser.isActive) {
@@ -88,7 +88,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               success: false,
               failureReason: 'account_inactive',
             });
-            return '/?error=AccountInactive';
+            return '/login?error=AccountInactive';
           }
 
           await logLoginAttempt({
@@ -127,7 +127,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return true;
         } catch (error) {
           console.error('[signIn callback error]', error);
-          return '/?error=ServerError';
+          return '/login?error=ServerError';
         }
       }
       return true;
@@ -176,8 +176,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   pages: {
-    signIn: '/',
-    error: '/',
+    signIn: '/login',
+    error: '/login',
   },
   secret: process.env.AUTH_SECRET,
 });
