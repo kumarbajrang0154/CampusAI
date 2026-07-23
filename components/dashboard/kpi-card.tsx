@@ -19,8 +19,8 @@ interface KpiCardProps {
 export function KpiCard({ title, value, icon: Icon, trend, loading = false }: KpiCardProps) {
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
+      <Card className="academic-card">
+        <CardContent className="p-5">
           <div className="flex items-center justify-between space-y-0 pb-2">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-6 w-6 rounded-full" />
@@ -35,23 +35,25 @@ export function KpiCard({ title, value, icon: Icon, trend, loading = false }: Kp
   }
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between space-y-0 pb-2">
-          <span className="text-sm font-medium text-muted-foreground">{title}</span>
-          <Icon className="h-5 w-5 text-muted-foreground" />
+    <Card className="academic-card group transition-all duration-200 hover:shadow-md hover:border-gold/30">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between space-y-0 pb-1">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+          <div className="p-2 rounded-md bg-secondary text-primary group-hover:bg-gold/10 group-hover:text-gold transition-colors">
+            <Icon className="h-4 w-4" />
+          </div>
         </div>
         <div className="mt-2">
-          <div className="text-2xl font-bold tracking-tight">{value}</div>
+          <div className="text-2xl font-bold tracking-tight font-serif-heading text-foreground">{value}</div>
           {trend && (
             <p className="mt-1 flex items-center text-xs">
               {trend.direction === 'up' ? (
-                <span className="flex items-center text-success font-medium">
+                <span className="flex items-center text-success font-semibold">
                   <TrendingUp className="mr-1 h-3 w-3" />
                   +{trend.percentage}%
                 </span>
               ) : (
-                <span className="flex items-center text-destructive font-medium">
+                <span className="flex items-center text-destructive font-semibold">
                   <TrendingDown className="mr-1 h-3 w-3" />
                   -{trend.percentage}%
                 </span>

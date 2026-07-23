@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Playfair_Display, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
 import { ThemeProvider } from '@/components/providers/theme-provider';
@@ -6,6 +7,24 @@ import { AppSessionProvider } from '@/components/shared/session-provider';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
+
+const serifFont = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+
+const sansFont = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const monoFont = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -23,8 +42,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`h-full antialiased ${serifFont.variable} ${sansFont.variable} ${monoFont.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-full flex flex-col font-sans bg-background text-foreground" suppressHydrationWarning>
         {/*
           Global Provider Stack Order:
           1. ThemeProvider (next-themes) - manages client/system light/dark modes

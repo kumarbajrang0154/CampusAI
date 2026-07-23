@@ -37,17 +37,17 @@ export function HeroSection() {
           {/* ── LEFT COLUMN: Pitch ─────────────────────────────────────────── */}
           <div className="order-2 lg:order-1 flex flex-col gap-6">
             {/* Eyebrow */}
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs font-semibold text-primary tracking-wide uppercase">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3.5 py-1 shadow-xs">
+              <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
+              <span className="text-xs font-bold text-foreground dark:text-gold tracking-wider uppercase">
                 AI-Powered Smart Campus Platform
               </span>
             </div>
 
             {/* H1 Headline */}
-            <h1 className="text-4xl font-extrabold tracking-tight text-foreground lg:text-5xl xl:text-[3.5rem] xl:leading-[1.1]">
+            <h1 className="font-serif-heading text-4xl font-extrabold tracking-tight text-foreground lg:text-5xl xl:text-[3.5rem] xl:leading-[1.1]">
               One platform for academics,{' '}
-              <span className="bg-gradient-to-r from-primary to-ai bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-primary via-primary-600 to-gold bg-clip-text text-transparent">
                 learning & placement
               </span>
             </h1>
@@ -64,9 +64,9 @@ export function HeroSection() {
               {TRUST_ITEMS.map(({ icon: Icon, label }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-2 rounded-lg border bg-background/80 px-3 py-2 shadow-sm"
+                  className="flex items-center gap-2 rounded-md border border-border/80 bg-card px-3.5 py-2 shadow-xs transition-all hover:border-gold/30"
                 >
-                  <Icon className="h-4 w-4 text-primary" />
+                  <Icon className="h-4 w-4 text-gold" />
                   <span className="text-sm font-medium text-foreground">{label}</span>
                 </div>
               ))}
@@ -75,13 +75,13 @@ export function HeroSection() {
 
           {/* ── RIGHT COLUMN: Login Card ────────────────────────────────────── */}
           <div className="order-1 lg:order-2 flex justify-center lg:justify-end">
-            <Card className="w-full max-w-sm shadow-2xl border-0 ring-1 ring-border/50 bg-card/80 backdrop-blur-sm">
+            <Card className="w-full max-w-sm shadow-xl border border-gold/30 bg-card/95 backdrop-blur-sm relative overflow-hidden academic-card">
               <CardHeader className="text-center pb-2">
                 {/* Small logo mark inside card */}
-                <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-xl shadow-lg">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-2xl shadow-md border border-gold/40">
                   C
                 </div>
-                <CardTitle className="text-xl">Welcome Back</CardTitle>
+                <CardTitle className="text-xl font-serif-heading font-bold">Welcome Back</CardTitle>
                 <CardDescription>Sign in with your institutional Google account</CardDescription>
               </CardHeader>
 

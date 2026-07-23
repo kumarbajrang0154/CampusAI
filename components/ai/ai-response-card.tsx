@@ -39,24 +39,26 @@ export function AiResponseCard({
   };
 
   return (
-    <Card className="border-l-4 border-l-ai bg-ai/5 dark:bg-ai/10 transition-all">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2 text-ai">
-          <Sparkles className="h-4 w-4 fill-ai" />
+    <Card className="border-l-4 border-l-ai bg-gradient-to-r from-ai/5 via-background to-gold/5 dark:from-ai/10 dark:via-card dark:to-gold/10 border-t border-r border-b shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b border-border/40">
+        <CardTitle className="text-sm font-bold flex items-center gap-2 text-ai font-serif-heading">
+          <span className="p-1 rounded bg-ai/15 text-ai">
+            <Sparkles className="h-3.5 w-3.5 fill-ai" />
+          </span>
           {title}
         </CardTitle>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-ai" onClick={handleCopyStub}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-ai hover:bg-ai/10" onClick={handleCopyStub}>
             <Copy className="h-4 w-4" />
             <span className="sr-only">Copy</span>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-ai" onClick={handleExportStub}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-ai hover:bg-ai/10" onClick={handleExportStub}>
             <Download className="h-4 w-4" />
             <span className="sr-only">Export</span>
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="text-sm text-foreground/90 space-y-2 leading-relaxed">
+      <CardContent className="text-sm text-foreground/90 space-y-2 leading-relaxed pt-3">
         {isLoading ? (
           <div className="space-y-2">
             <div className="h-4 w-full bg-ai/10 animate-pulse rounded" />

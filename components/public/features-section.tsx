@@ -72,10 +72,10 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Heading */}
         <div className="mx-auto max-w-xl text-center mb-14">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-3">
+          <h2 className="font-serif-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl mb-3">
             Everything Your Campus Needs
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-base">
             Nine core modules, all connected, all in one place.
           </p>
         </div>
@@ -85,16 +85,13 @@ export function FeaturesSection() {
           {FEATURES.map(({ icon: Icon, title, description }) => (
             <div
               key={title}
-              className="group relative rounded-2xl border bg-background/80 p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5"
+              className="group relative rounded-lg border border-border/80 bg-card p-6 shadow-xs transition-all duration-200 hover:shadow-md hover:border-gold/40 hover:-translate-y-0.5 academic-card"
             >
-              {/* Hover accent */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/0 to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
-
               <div className="relative">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/15">
-                  <Icon className="h-5 w-5 text-primary" />
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-gold/15 group-hover:text-gold">
+                  <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-sm font-semibold text-foreground mb-1.5">{title}</h3>
+                <h3 className="font-serif-heading text-base font-bold text-foreground mb-1.5">{title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
               </div>
             </div>

@@ -40,10 +40,10 @@ export function PublicFooter() {
           {/* Brand column */}
           <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-lg">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-lg border border-gold/40">
                 C
               </div>
-              <span className="font-bold text-base tracking-tight">CampusAI</span>
+              <span className="font-serif-heading font-extrabold text-lg tracking-tight">Campus<span className="text-gold">AI</span></span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-[220px]">
               The intelligent campus platform that unifies ERP, LMS, Placement, and AI — purpose-built for higher education.

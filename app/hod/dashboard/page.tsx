@@ -20,7 +20,7 @@ export default function HodDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">HOD Dashboard</h1>
+        <h1 className="font-serif-heading text-3xl font-extrabold tracking-tight text-foreground">HOD Dashboard</h1>
         <p className="text-muted-foreground text-sm">
           Overview of department academics, staff listings, and student placement rates.
         </p>

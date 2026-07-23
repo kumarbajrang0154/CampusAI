@@ -173,11 +173,13 @@ export function Navbar() {
           <Button variant="ghost" size="icon" className="xl:hidden" onClick={toggleSidebar}>
             <Menu className="h-5 w-5" />
           </Button>
-          <Link href={logoHref} className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xl">
+          <Link href={logoHref} className="flex items-center gap-2.5 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xl border border-gold/40 shadow-sm group-hover:border-gold transition-colors">
               C
             </div>
-            <span className="font-bold text-lg hidden sm:block tracking-tight">CampusAI</span>
+            <span className="font-serif-heading font-extrabold text-xl hidden sm:block tracking-tight text-foreground">
+              Campus<span className="text-gold">AI</span>
+            </span>
           </Link>
         </div>
 
