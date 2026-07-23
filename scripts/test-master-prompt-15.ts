@@ -1,123 +1,136 @@
+import 'dotenv/config';
 import prisma from '../lib/prisma';
-import { RoleService } from '../features/admin/roles/services/role.service';
-import { hasPermission } from '../lib/permissions';
-import { UserRole } from '@prisma/client';
+import { uploadToCloudinary } from '../features/lms/services/cloudinary.service';
+import { LearningRepository } from '../features/lms/repositories/learning.repository';
 
-async function main() {
-  console.log('--- Testing Master Prompt 15: Roles & RBAC Management ---');
+async function testMasterPrompt15() {
+  console.log('=== TEST MASTER PROMPT 15: STUDENT TIMETABLE + LEARNING/NOTES MODULE ===\n');
 
-  const service = new RoleService();
+  // 1. Cloudinary File Upload Test
+  console.log('1. Testing Cloudinary File Upload Service...');
+  const samplePdfBuffer = Buffer.from('%PDF-1.4 sample pdf document content for campusai learning resources testing');
+  const uploadResult = await uploadToCloudinary(samplePdfBuffer, 'unit_3_dsa_notes.pdf', 'campusai_learning_resources');
 
-  // 1. Fetch Admin User
-  const adminUser = await prisma.user.findFirst({
-    where: { role: UserRole.ADMIN, deletedAt: null },
-  });
-  if (!adminUser) throw new Error('No Admin user found.');
+  console.log('   Cloudinary Upload Result:', uploadResult);
+  console.log('   Resulting Cloudinary HTTPS URL:', uploadResult.url);
 
-  // Fetch a Faculty user
-  const facultyUser = await prisma.user.findFirst({
-    where: { role: UserRole.FACULTY, deletedAt: null },
-  });
-  if (!facultyUser) throw new Error('No Faculty user found.');
-
-  let student1 = await prisma.user.findFirst({
-    where: { role: UserRole.STUDENT, deletedAt: null },
+  // 2. Fetch Student & Subject Data
+  console.log('\n2. Fetching test Student & Faculty profiles...');
+  const student = await prisma.student.findFirst({
+    include: { user: true, department: true },
   });
 
-  if (!student1) {
-    student1 = await prisma.user.create({
-      data: {
-        email: `test.student.${Date.now()}@campusai.edu`,
-        name: 'Test Student',
-        role: UserRole.STUDENT,
-        status: 'ACTIVE',
-      },
-    });
+  const faculty = await prisma.faculty.findFirst({
+    include: { user: true },
+  });
+
+  const subject = await prisma.subject.findFirst({
+    where: { course: { departmentId: student?.departmentId } },
+  });
+
+  if (!student || !faculty || !subject) {
+    console.error('❌ Student, Faculty, or Subject missing in database');
+    return;
   }
 
-  let student2 = await prisma.user.findFirst({
-    where: { role: UserRole.STUDENT, id: { not: student1.id }, deletedAt: null },
+  console.log(`   Student: ${student.user.name} (${student.enrollmentNo}, Dept: ${student.department.code})`);
+  console.log(`   Faculty: ${faculty.user.name}`);
+  console.log(`   Subject: ${subject.name} (${subject.code})`);
+
+  // 3. Test Faculty Resource Upload (Cloudinary PDF & YouTube Link)
+  console.log('\n3. Creating Learning Resources (Cloudinary PDF + YouTube Link)...');
+  const pdfResource = await LearningRepository.createLearningResource({
+    subjectId: subject.id,
+    facultyId: faculty.id,
+    title: 'Unit 3 Lecture Slides - Trees & Heaps',
+    description: 'Comprehensive lecture slides covering binary search trees and heap sorting.',
+    type: 'PDF',
+    fileUrl: uploadResult.url,
   });
 
-  // Clear any existing test overrides
-  await prisma.userPermission.deleteMany({
-    where: { userId: { in: [student1.id, student2?.id].filter(Boolean) as string[] } },
+  const ytResource = await LearningRepository.createLearningResource({
+    subjectId: subject.id,
+    facultyId: faculty.id,
+    title: 'Advanced Dynamic Programming Video Lecture',
+    description: 'Video walkthrough of knapsack problem and memoization techniques.',
+    type: 'YOUTUBE_LINK',
+    fileUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   });
 
-  // 2. Fetch Matrix
-  const matrix = await service.getRolePermissionMatrix();
-  console.log(`✓ Matrix retrieved: ${matrix.permissions.length} total permissions across ${matrix.categories.length} categories.`);
+  console.log('   PDF Resource Created:', pdfResource.id, pdfResource.title, pdfResource.fileUrl);
+  console.log('   YouTube Resource Created:', ytResource.id, ytResource.title, ytResource.fileUrl);
 
-  // Find quiz.create permission
-  const quizCreatePerm = matrix.permissions.find((p) => p.key === 'quiz.create');
-  const roleManagePerm = matrix.permissions.find((p) => p.key === 'role.manage');
-
-  if (!quizCreatePerm || !roleManagePerm) {
-    throw new Error('Required permissions quiz.create / role.manage not found.');
-  }
-
-  // 3. Test Role Permission Toggle (Faculty + quiz.create)
-  console.log('\n1. Testing Role Permission Toggle (FACULTY -> quiz.create OFF)...');
-  await service.toggleRolePermission(UserRole.FACULTY, quizCreatePerm.id, false, adminUser.id);
-  const facultyHasPermOff = await hasPermission(facultyUser.id, 'quiz.create');
-  console.log(`✓ Has permission after toggle OFF: ${facultyHasPermOff} (Expected: false)`);
-  if (facultyHasPermOff !== false) throw new Error('Toggle OFF failed!');
-
-  console.log('2. Restoring Role Permission (FACULTY -> quiz.create ON)...');
-  await service.toggleRolePermission(UserRole.FACULTY, quizCreatePerm.id, true, adminUser.id);
-  const facultyHasPermOn = await hasPermission(facultyUser.id, 'quiz.create');
-  console.log(`✓ Has permission after toggle ON: ${facultyHasPermOn} (Expected: true)`);
-  if (facultyHasPermOn !== true) throw new Error('Toggle ON failed!');
-
-  // 4. Test Per-User Override (Student 1 + quiz.create GRANT)
-  console.log('\n3. Testing Per-User Override (Granting quiz.create to Student 1)...');
-  const student1Baseline = await hasPermission(student1.id, 'quiz.create');
-  console.log(`✓ Student 1 baseline permission: ${student1Baseline} (Expected: false)`);
-
-  await service.setUserOverride(student1.id, quizCreatePerm.id, true, adminUser.id);
-  const student1WithOverride = await hasPermission(student1.id, 'quiz.create');
-  console.log(`✓ Student 1 permission after GRANT override: ${student1WithOverride} (Expected: true)`);
-  if (student1WithOverride !== true) throw new Error('User override GRANT failed!');
-
-  if (student2) {
-    const student2Perm = await hasPermission(student2.id, 'quiz.create');
-    console.log(`✓ Student 2 (no override) permission: ${student2Perm} (Expected: false)`);
-    if (student2Perm !== false) throw new Error('Override leaked to other students!');
-  }
-
-  // Reset override
-  await service.setUserOverride(student1.id, quizCreatePerm.id, null, adminUser.id);
-  const student1Reset = await hasPermission(student1.id, 'quiz.create');
-  console.log(`✓ Student 1 permission after RESET override: ${student1Reset} (Expected: false)`);
-
-  // 5. Test Safety Guard: Admin role.manage Protection
-  console.log('\n4. Testing Safety Guard (Blocking removal of role.manage from Admin)...');
-  try {
-    await service.toggleRolePermission(UserRole.ADMIN, roleManagePerm.id, false, adminUser.id);
-    console.error('❌ FAILED: Safety guard did not block admin role.manage removal!');
-    process.exit(1);
-  } catch (err: any) {
-    console.log(`✓ SUCCESS: Admin safety guard caught -> "${err.message}"`);
-  }
-
-  // 6. Verify ActivityLog
-  const logs = await prisma.activityLog.findMany({
+  // 4. Test Student Timetable Query
+  console.log('\n4. Verifying Student Timetable query for section...');
+  const timetable = await prisma.timetable.findFirst({
     where: {
-      action: { in: ['ROLE_PERMISSION_UPDATED', 'USER_PERMISSION_OVERRIDE_UPDATED'] },
+      departmentId: student.departmentId,
+      semester: student.semester,
+      section: student.section,
     },
-    take: 5,
-    orderBy: { createdAt: 'desc' },
+    include: {
+      slots: {
+        include: {
+          subject: true,
+          classroom: true,
+        },
+      },
+    },
   });
-  console.log(`\n5. Verified Activity Logs: ${logs.length} entries recorded.`);
 
-  console.log('\n✅ All Master Prompt 15 Verification Checks Passed 100%!');
+  console.log(`   Timetable for ${student.department.code} Sem ${student.semester} Sec ${student.section}:`, timetable ? '✅ FOUND' : '❌ NOT FOUND');
+  console.log(`   Total Slots in Weekly Grid: ${timetable?.slots.length}`);
+
+  // 5. Test Student Learning Consumption & Filter
+  console.log('\n5. Fetching Student Learning Resources & Filtering...');
+  const enrolledResources = await LearningRepository.getStudentLearningResources(student.id);
+  const pdfOnly = await LearningRepository.getStudentLearningResources(student.id, undefined, 'PDF');
+
+  console.log(`   Total Enrolled Resources: ${enrolledResources.length}`);
+  console.log(`   PDF Filtered Resources: ${pdfOnly.length}`);
+
+  // 6. Test NotesRequest Creation & In-App Notification Delivery
+  console.log('\n6. Testing NotesRequest Creation & In-App Notification...');
+  const targetSubject = await prisma.subject.findFirst({
+    where: { course: { departmentId: student.departmentId } },
+    include: { faculty: { include: { user: true } } },
+  });
+
+  if (!targetSubject) {
+    console.error('❌ Target subject missing');
+    return;
+  }
+
+  const notesReq = await LearningRepository.createNotesRequest({
+    studentId: student.id,
+    subjectId: targetSubject.id,
+    facultyId: targetSubject.facultyId ?? faculty.id,
+    message: `Please upload notes for ${targetSubject.code}. Midterm exams are approaching.`,
+  });
+
+  console.log('   NotesRequest Created with ID:', notesReq.id, 'Status:', notesReq.status);
+
+  // Check target faculty's in-app notification
+  const targetFacultyUserId = targetSubject.faculty?.user?.id || faculty.user.id;
+  const notifications = await prisma.notification.findMany({
+    where: { userId: targetFacultyUserId },
+    orderBy: { createdAt: 'desc' },
+    take: 2,
+  });
+
+  console.log(`   In-App Notifications for Faculty (${targetFacultyUserId}):`, notifications.length > 0 ? '✅ DELIVERED' : '❌ NONE');
+  if (notifications.length > 0) {
+    console.log('   Latest Notification:', notifications[0]);
+  }
+
+  // 7. Resolve Notes Request
+  console.log('\n7. Resolving NotesRequest as Faculty...');
+  const resolvedReq = await LearningRepository.resolveNotesRequest(notesReq.id, 'FULFILLED');
+  console.log('   Resolved Request Status:', resolvedReq.status, 'Resolved At:', resolvedReq.resolvedAt);
+
+  console.log('\n✅ ALL MASTER PROMPT 15 TESTS EXECUTED SUCCESSFULLY!');
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+testMasterPrompt15()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());

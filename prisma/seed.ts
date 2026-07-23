@@ -32,6 +32,7 @@ const permissions: Array<{ key: string; description: string; group: string }> = 
   { key: 'timetable.view', description: 'View timetable schedules', group: 'Academic' },
 
   // Attendance
+  { key: 'MARK_ATTENDANCE', description: 'Mark student attendance and manage attendance queries', group: 'Attendance' },
   { key: 'attendance.write', description: 'Mark and update attendance records', group: 'Attendance' },
   { key: 'attendance.read', description: 'View attendance records', group: 'Attendance' },
   { key: 'attendance.report', description: 'Generate attendance reports', group: 'Attendance' },
