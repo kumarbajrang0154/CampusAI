@@ -19,7 +19,7 @@ interface KpiCardProps {
 export function KpiCard({ title, value, icon: Icon, trend, loading = false }: KpiCardProps) {
   if (loading) {
     return (
-      <Card className="academic-card">
+      <Card className="border border-border/80 shadow-xs">
         <CardContent className="p-5">
           <div className="flex items-center justify-between space-y-0 pb-2">
             <Skeleton className="h-4 w-24" />
@@ -35,16 +35,16 @@ export function KpiCard({ title, value, icon: Icon, trend, loading = false }: Kp
   }
 
   return (
-    <Card className="academic-card group transition-all duration-200 hover:shadow-md hover:border-gold/30">
+    <Card className="border border-border/80 shadow-xs group transition-all duration-200 hover:shadow-sm hover:border-primary/40 bg-card">
       <CardContent className="p-5">
         <div className="flex items-center justify-between space-y-0 pb-1">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
-          <div className="p-2 rounded-md bg-secondary text-primary group-hover:bg-gold/10 group-hover:text-gold transition-colors">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary transition-colors">
             <Icon className="h-4 w-4" />
           </div>
         </div>
         <div className="mt-2">
-          <div className="text-2xl font-bold tracking-tight font-serif-heading text-foreground">{value}</div>
+          <div className="text-2xl font-bold tracking-tight text-foreground">{value}</div>
           {trend && (
             <p className="mt-1 flex items-center text-xs">
               {trend.direction === 'up' ? (

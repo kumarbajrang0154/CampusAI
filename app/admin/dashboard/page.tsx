@@ -20,7 +20,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-serif-heading text-3xl font-extrabold tracking-tight text-foreground">Admin Console</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Admin Console</h1>
         <p className="text-muted-foreground text-sm">
           Control center for platform operations, user registrations, and system monitoring.
         </p>

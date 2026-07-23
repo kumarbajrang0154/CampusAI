@@ -28,7 +28,7 @@ export default function StudentDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-serif-heading text-3xl font-extrabold tracking-tight text-foreground">Student Dashboard</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Student Dashboard</h1>
         <p className="text-muted-foreground text-sm">
           Welcome back! Here is a summary of your academic progress.
         </p>

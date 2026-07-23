@@ -19,7 +19,7 @@ export default function FacultyDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-serif-heading text-3xl font-extrabold tracking-tight text-foreground">Faculty Dashboard</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Faculty Dashboard</h1>
         <p className="text-muted-foreground text-sm">
           Manage your courses, grading rosters, and student academic performance.
         </p>

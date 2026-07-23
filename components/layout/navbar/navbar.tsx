@@ -43,6 +43,8 @@ import {
   markAllNotificationsAsReadAction,
 } from '@/features/admin/notifications/actions/notification.actions';
 
+import { CampusLogoMark } from '@/components/shared/campus-logo-mark';
+
 // Role dashboard map
 const ROLE_DASHBOARDS: Record<string, string> = {
   STUDENT: '/student/dashboard',
@@ -174,11 +176,9 @@ export function Navbar() {
             <Menu className="h-5 w-5" />
           </Button>
           <Link href={logoHref} className="flex items-center gap-2.5 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xl border border-gold/40 shadow-sm group-hover:border-gold transition-colors">
-              C
-            </div>
-            <span className="font-serif-heading font-extrabold text-xl hidden sm:block tracking-tight text-foreground">
-              Campus<span className="text-gold">AI</span>
+            <CampusLogoMark size="md" />
+            <span className="font-sans font-bold text-lg hidden sm:block tracking-tight text-foreground">
+              Campus<span className="text-primary">AI</span>
             </span>
           </Link>
         </div>
