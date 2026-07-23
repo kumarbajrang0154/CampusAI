@@ -348,21 +348,60 @@ model Classroom {
 enum AcademicEventType {
   HOLIDAY
   EXAM
+  REGISTRATION
+  ORIENTATION
+  RESULT
+  OTHER
   EVENT
+}
+
+enum SemesterTerm {
+  ODD
+  EVEN
+}
+
+enum SemesterStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+model Semester {
+  id           String         @id @default(cuid())
+  name         String
+  academicYear String
+  term         SemesterTerm
+  startDate    DateTime
+  endDate      DateTime
+  status       SemesterStatus @default(UPCOMING)
+  isCurrent    Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  academicCalendars AcademicCalendar[]
+
+  @@index([status])
+  @@index([isCurrent])
+  @@map("semesters")
 }
 
 model AcademicCalendar {
   id           String            @id @default(cuid())
   title        String
+  description  String?
   eventType    AcademicEventType
   startDate    DateTime
-  endDate      DateTime
+  endDate      DateTime?
+  isPublished  Boolean           @default(false)
+  semesterId   String?
   departmentId String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
+  semester   Semester?   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
+  @@index([semesterId])
   @@index([departmentId])
   @@map("academic_calendar")
 }
