@@ -1,8 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Briefcase, Building2 } from 'lucide-react';
+import Link from 'next/link';
+import { Briefcase, Building2, Code2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { PlacementKpiCards } from '@/features/admin/placement/components/placement-kpi-cards';
 import { DriveManagementTab } from '@/features/admin/placement/components/drive-management-tab';
 import { CompanyManagementTab } from '@/features/admin/placement/components/company-management-tab';
@@ -17,13 +19,18 @@ export default function AdminPlacementPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Header & Overview */}
-      <div className="border-b pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <Briefcase className="h-6 w-6 text-primary" /> Placement Management
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage corporate recruiters, publish campus drives, track applicant pipelines, and issue job offers.
-        </p>
+      <div className="border-b pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Briefcase className="h-6 w-6 text-primary" /> Placement Management
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage corporate recruiters, publish campus drives, track applicant pipelines, and manage DSA problem bank.
+          </p>
+        </div>
+        <Button render={<Link href="/admin/placement/problems" className="gap-2 text-xs" />} variant="outline">
+          <Code2 className="h-4 w-4" /> DSA Problem Bank
+        </Button>
       </div>
 
       {/* KPI Overview Cards */}

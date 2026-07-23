@@ -9,6 +9,7 @@ import { LineChartCard } from '@/components/charts/line-chart-card';
 import { PieChartCard } from '@/components/charts/pie-chart-card';
 import { AiResponseCard } from '@/components/ai/ai-response-card';
 import { EmptyState } from '@/components/shared/empty-state';
+import { PlacementPrepDashboardCard } from '@/features/student/placement/components/placement-prep-dashboard-card';
 
 const MOCK_LINE_DATA = [
   { month: 'Jan', gpa: 8.1 },
@@ -60,6 +61,9 @@ export default function StudentDashboard() {
           trend={{ direction: 'up', percentage: 15.4 }}
         />
       </div>
+
+      {/* Placement Prep Summary Card */}
+      <PlacementPrepDashboardCard />
 
       {/* AI Center Accent */}
       <AiResponseCard title="AI Career Assistant Recommendations">

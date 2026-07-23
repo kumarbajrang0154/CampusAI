@@ -215,6 +215,8 @@ model Student {
   attempts     QuizAttempt[]
   resume       Resume?
   applications Application[]
+  placementProfile StudentPlacementProfile?
+  dsaProgress      StudentProblemProgress[]
 
   @@index([departmentId])
   @@map("students")
@@ -852,4 +854,113 @@ model Notification {
   @@index([userId])
   @@index([batchId])
   @@map("notifications")
+}
+
+// ==================== B9. Placement Center Prep & DSA Bank ====================
+
+enum DSADifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum DSAPlatform {
+  LEETCODE
+  HACKERRANK
+}
+
+enum DSAProblemStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SOLVED
+}
+
+model PlacementDomain {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studentProfiles StudentPlacementProfile[]
+  dsaProblems     DSAProblem[]
+
+  @@map("placement_domains")
+}
+
+model StudentPlacementProfile {
+  id                 String    @id @default(cuid())
+  studentId          String    @unique
+  domainId           String?
+  roadmapGeneratedAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  student Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  domain  PlacementDomain? @relation(fields: [domainId], references: [id], onDelete: SetNull)
+
+  roadmapStages RoadmapStage[]
+
+  @@index([studentId])
+  @@index([domainId])
+  @@map("student_placement_profiles")
+}
+
+model RoadmapStage {
+  id                        String   @id @default(cuid())
+  studentPlacementProfileId String
+  order                     Int
+  title                     String
+  description               String
+  durationLabel             String
+  isCompleted               Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  profile StudentPlacementProfile @relation(fields: [studentPlacementProfileId], references: [id], onDelete: Cascade)
+
+  @@index([studentPlacementProfileId])
+  @@map("roadmap_stages")
+}
+
+model DSAProblem {
+  id                String        @id @default(cuid())
+  title             String
+  domainId          String
+  difficulty        DSADifficulty
+  platform          DSAPlatform
+  problemUrl        String
+  solutionVideoUrl  String?
+  codeSolution      String?
+  dryRunExplanation String?
+  order             Int           @default(1)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  domain PlacementDomain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  progressEntries StudentProblemProgress[]
+
+  @@index([domainId])
+  @@index([difficulty])
+  @@map("dsa_problems")
+}
+
+model StudentProblemProgress {
+  id        String           @id @default(cuid())
+  studentId String
+  problemId String
+  status    DSAProblemStatus @default(NOT_STARTED)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  student Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem DSAProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, problemId])
+  @@index([studentId])
+  @@index([problemId])
+  @@map("student_problem_progress")
 }
